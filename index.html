@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1d4ed8">
+  <meta name="theme-color" content="#f9f9ff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
   <title>Leak Log</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -12,81 +13,113 @@
 <body>
   <header>
     <h1>Leak Log</h1>
-    <p id="summary" class="muted"></p>
+    <p id="summary" class="supporting"></p>
   </header>
 
   <main>
-    <!-- Log a check: record every time you look at the ceiling, leak or not. -->
-    <section class="card">
-      <h2>Log a check</h2>
-      <p class="muted">Log dry checks too. The analysis needs to compare
-        weather when it leaked with weather when it didn't.</p>
-
-      <form id="check-form">
-        <label>
-          When did you check?
-          <input type="datetime-local" id="check-time" required>
-        </label>
-
-        <fieldset class="choice">
-          <legend>What did you find?</legend>
-          <label class="option leak">
-            <input type="radio" name="outcome" value="leak" required>
-            <span>Leak</span>
-          </label>
-          <label class="option dry">
-            <input type="radio" name="outcome" value="dry">
-            <span>Dry</span>
-          </label>
-        </fieldset>
-
-        <label id="severity-row" hidden>
-          How bad?
-          <select id="severity">
-            <option value="damp">Damp patch</option>
-            <option value="drip">Dripping</option>
-            <option value="heavy">Heavy / pooling</option>
-          </select>
-        </label>
-
-        <label>
-          Notes (optional)
-          <textarea id="notes" rows="2" placeholder="e.g. bucket half full, new stain near window"></textarea>
-        </label>
-
-        <button type="submit" class="primary">Save check</button>
-      </form>
-    </section>
-
     <section class="card">
       <h2>History</h2>
       <ul id="history"></ul>
-      <p id="empty" class="muted">No checks logged yet.</p>
+
+      <!-- Empty state: shown until the first leak is logged. -->
+      <div id="empty" class="empty">
+        <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+          <circle cx="60" cy="60" r="22" class="sun-core"/>
+          <g class="sun-rays" stroke-width="6" stroke-linecap="round">
+            <line x1="60" y1="12" x2="60" y2="26"/>
+            <line x1="60" y1="94" x2="60" y2="108"/>
+            <line x1="12" y1="60" x2="26" y2="60"/>
+            <line x1="94" y1="60" x2="108" y2="60"/>
+            <line x1="26" y1="26" x2="36" y2="36"/>
+            <line x1="84" y1="84" x2="94" y2="94"/>
+            <line x1="26" y1="94" x2="36" y2="84"/>
+            <line x1="84" y1="36" x2="94" y2="26"/>
+          </g>
+        </svg>
+        <p>No leaks logged yet.</p>
+      </div>
     </section>
 
     <section class="card">
-      <h2>Settings</h2>
-
-      <h3>Flat location</h3>
-      <p class="muted">Used to look up the weather for your flat. It's stored
-        only on this phone and is never put in the code or on GitHub.</p>
-      <div class="row">
-        <label>Latitude <input type="number" id="lat" step="0.001" inputmode="decimal"></label>
-        <label>Longitude <input type="number" id="lon" step="0.001" inputmode="decimal"></label>
-      </div>
-      <div class="row">
-        <button type="button" id="use-location">Use my current location</button>
-        <button type="button" id="save-location">Save location</button>
-      </div>
-
-      <h3>Backup</h3>
-      <p class="muted">Your checks live in this phone's browser. Export a CSV
+      <h2>Backup</h2>
+      <p class="supporting">Your leaks live in this phone's browser. Export a CSV
         now and then (e.g. to Google Drive) so you can't lose them.</p>
-      <button type="button" id="export-csv">Export CSV</button>
+      <button type="button" id="export-csv" class="btn tonal">Export CSV</button>
     </section>
   </main>
 
-  <div id="toast" role="status" aria-live="polite"></div>
+  <button type="button" id="fab" class="fab" aria-label="Record leak">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/>
+    </svg>
+  </button>
+
+  <!-- Record leak: full-screen dialog, MD3's pattern for forms on phones. -->
+  <dialog id="record-dialog" class="fullscreen" aria-labelledby="record-title">
+    <form id="leak-form" novalidate>
+      <div class="dialog-bar">
+        <button type="button" id="close-record" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/>
+          </svg>
+        </button>
+        <h2 id="record-title">Record leak</h2>
+        <button type="submit" class="btn text">Save</button>
+      </div>
+
+      <div class="dialog-body">
+        <fieldset>
+          <legend>When did it leak?</legend>
+          <p class="supporting">If you found it after being out, pick the
+            whole time you were away.</p>
+          <div class="row">
+            <label class="field">
+              <span>From</span>
+              <input type="datetime-local" id="leak-from" required>
+            </label>
+            <label class="field">
+              <span>To</span>
+              <input type="datetime-local" id="leak-to" required>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>How bad was it?</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="severity" value="low"><span>Low</span></label>
+            <label class="chip"><input type="radio" name="severity" value="medium"><span>Medium</span></label>
+            <label class="chip"><input type="radio" name="severity" value="high"><span>High</span></label>
+            <label class="chip"><input type="radio" name="severity" value="mug"><span>Spilled Sports Direct mug</span></label>
+          </div>
+          <p class="or">or</p>
+          <label class="field">
+            <span>Spill volume (ml)</span>
+            <input type="number" id="volume" min="1" step="1" inputmode="numeric">
+          </label>
+        </fieldset>
+
+        <label class="field">
+          <span>Notes (optional)</span>
+          <textarea id="notes" rows="3" placeholder="e.g. bucket half full, new stain near window"></textarea>
+        </label>
+
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Delete confirmation: MD3 basic dialog. -->
+  <dialog id="delete-dialog" class="basic" aria-labelledby="delete-title">
+    <h2 id="delete-title">Delete this leak?</h2>
+    <p class="supporting">This can't be undone.</p>
+    <div class="actions">
+      <button type="button" id="cancel-delete" class="btn text">Cancel</button>
+      <button type="button" id="confirm-delete" class="btn text danger">Delete</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="snackbar" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

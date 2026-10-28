@@ -1,10 +1,13 @@
-// Leak Log - stage 1: record leak checks on the phone.
+// Leak Log - stage 1: record leaks on the phone.
+//
+// Only leaks are logged. Any time after tracking started that isn't inside
+// a logged leak counts as dry.
 //
 // All data is kept in the browser's localStorage on this device.
 // Nothing is sent to any server.
 
-const CHECKS_KEY = 'leakLog.checks.v1';
-const SETTINGS_KEY = 'leakLog.settings.v1';
+const LEAKS_KEY = 'leakLog.leaks.v1';
+const TRACKING_KEY = 'leakLog.trackingStartedAt';
 
 // ---------- Storage ----------
 
@@ -21,10 +24,18 @@ function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-const loadChecks = () => loadJson(CHECKS_KEY, []);
-const saveChecks = (checks) => saveJson(CHECKS_KEY, checks);
-const loadSettings = () => loadJson(SETTINGS_KEY, {});
-const saveSettings = (settings) => saveJson(SETTINGS_KEY, settings);
+const loadLeaks = () => loadJson(LEAKS_KEY, []);
+const saveLeaks = (leaks) => saveJson(LEAKS_KEY, leaks);
+
+// Saved once, the first time the app opens, and never changed after that.
+function trackingStartedAt() {
+  let started = loadJson(TRACKING_KEY, null);
+  if (!started) {
+    started = new Date().toISOString();
+    saveJson(TRACKING_KEY, started);
+  }
+  return started;
+}
 
 // ---------- Helpers ----------
 
@@ -37,14 +48,30 @@ function toLocalInputValue(date) {
          `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function formatWhen(iso) {
-  return new Date(iso).toLocaleString('en-GB', {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: '2-digit', minute: '2-digit',
-  });
+const formatDay = (date) =>
+  date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const formatTime = (date) =>
+  date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+// e.g. "Tue 27 Oct, 09:00 – 17:30" or "Mon 26 Oct, 22:00 – Tue 27 Oct, 07:00"
+function formatRange(fromIso, toIso) {
+  const from = new Date(fromIso);
+  const to = new Date(toIso);
+  const start = `${formatDay(from)}, ${formatTime(from)}`;
+  if (from.getTime() === to.getTime()) return start;
+  const sameDay = from.toDateString() === to.toDateString();
+  return `${start} – ${sameDay ? '' : `${formatDay(to)}, `}${formatTime(to)}`;
 }
 
-const SEVERITY_LABELS = { damp: 'Damp patch', drip: 'Dripping', heavy: 'Heavy / pooling' };
+const SEVERITY_LABELS = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  mug: 'Spilled Sports Direct mug',
+};
+
+const describeAmount = (leak) =>
+  leak.volumeMl != null ? `${leak.volumeMl} ml` : SEVERITY_LABELS[leak.severity] ?? leak.severity;
 
 function toast(message) {
   const el = $('toast');
@@ -57,17 +84,19 @@ function toast(message) {
 // ---------- Rendering ----------
 
 function render() {
-  const checks = loadChecks().sort((a, b) => b.time.localeCompare(a.time));
-  const leaks = checks.filter((c) => c.leak).length;
+  const leaks = loadLeaks().sort((a, b) => b.from.localeCompare(a.from));
+  const since = new Date(trackingStartedAt()).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
 
   $('summary').textContent =
-    `${checks.length} check${checks.length === 1 ? '' : 's'} logged, ${leaks} with a leak`;
-  $('empty').hidden = checks.length > 0;
+    `${leaks.length} leak${leaks.length === 1 ? '' : 's'} logged · Tracking since ${since}`;
+  $('empty').hidden = leaks.length > 0;
 
   const list = $('history');
   list.replaceChildren();
 
-  for (const check of checks) {
+  for (const leak of leaks) {
     const li = document.createElement('li');
 
     const entry = document.createElement('div');
@@ -75,97 +104,104 @@ function render() {
 
     const when = document.createElement('div');
     when.className = 'when';
-    when.textContent = formatWhen(check.time);
+    when.textContent = formatRange(leak.from, leak.to);
 
-    const badge = document.createElement('div');
-    badge.className = `badge ${check.leak ? 'leak' : 'dry'}`;
-    badge.textContent = check.leak
-      ? `Leak - ${SEVERITY_LABELS[check.severity] ?? check.severity}`
-      : 'Dry';
+    const amount = document.createElement('div');
+    amount.className = 'amount';
+    amount.textContent = describeAmount(leak);
 
-    entry.append(when, badge);
+    entry.append(when, amount);
 
-    if (check.notes) {
+    if (leak.notes) {
       const notes = document.createElement('div');
       notes.className = 'notes';
-      notes.textContent = check.notes; // textContent, never innerHTML, for user text
+      notes.textContent = leak.notes; // textContent, never innerHTML, for user text
       entry.append(notes);
     }
 
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'delete';
+    del.className = 'btn text';
     del.textContent = 'Delete';
-    del.addEventListener('click', () => deleteCheck(check.id));
+    del.addEventListener('click', () => askToDelete(leak.id));
 
     li.append(entry, del);
     list.append(li);
   }
 }
 
-// ---------- Actions ----------
+// ---------- Record leak ----------
 
-function resetForm() {
-  $('check-form').reset();
-  $('check-time').value = toLocalInputValue(new Date());
-  $('severity-row').hidden = true;
+function openRecordDialog() {
+  const now = toLocalInputValue(new Date());
+  $('leak-form').reset();
+  for (const input of [$('leak-from'), $('leak-to')]) {
+    input.value = now;
+    input.max = now; // the phone's picker won't offer future times
+  }
+  showError('');
+  $('record-dialog').showModal();
 }
 
-function addCheck(event) {
+function showError(message) {
+  $('form-error').textContent = message;
+  $('form-error').hidden = !message;
+}
+
+function addLeak(event) {
   event.preventDefault();
 
-  const outcome = document.querySelector('input[name="outcome"]:checked')?.value;
-  const time = new Date($('check-time').value);
-  if (!outcome || isNaN(time)) return;
+  let from = new Date($('leak-from').value);
+  let to = new Date($('leak-to').value);
+  const severity = document.querySelector('input[name="severity"]:checked')?.value ?? null;
+  const volumeText = $('volume').value.trim();
+  const volume = Number(volumeText);
 
-  const check = {
+  if (isNaN(from) || isNaN(to)) return showError('Enter both a From and a To time.');
+  if (from > Date.now() || to > Date.now()) return showError("Leak times can't be in the future.");
+  if (!severity && !volumeText) return showError('Pick how bad it was, or enter the spill volume.');
+  if (severity && volumeText) return showError('Pick a severity or enter a volume, not both.');
+  if (volumeText && !(Number.isInteger(volume) && volume >= 1)) {
+    return showError('Spill volume must be a whole number of ml, 1 or more.');
+  }
+
+  // "To" before "From" is almost certainly a slip, so swap them.
+  if (to < from) [from, to] = [to, from];
+
+  const leak = {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    time: time.toISOString(), // stored in UTC so it lines up with weather data later
-    leak: outcome === 'leak',
-    severity: outcome === 'leak' ? $('severity').value : null,
+    from: from.toISOString(), // stored in UTC so it lines up with weather data later
+    to: to.toISOString(),
+    severity: volumeText ? null : severity,
+    volumeMl: volumeText ? volume : null,
     notes: $('notes').value.trim(),
     createdAt: new Date().toISOString(),
   };
 
-  saveChecks([...loadChecks(), check]);
-  resetForm();
+  saveLeaks([...loadLeaks(), leak]);
+  $('record-dialog').close();
   render();
-  toast(check.leak ? 'Leak logged' : 'Dry check logged');
+  toast('Leak logged');
 }
 
-function deleteCheck(id) {
-  if (!confirm('Delete this check?')) return;
-  saveChecks(loadChecks().filter((c) => c.id !== id));
+// ---------- Delete ----------
+
+let pendingDeleteId = null;
+
+function askToDelete(id) {
+  pendingDeleteId = id;
+  $('delete-dialog').showModal();
+}
+
+function confirmDelete() {
+  saveLeaks(loadLeaks().filter((l) => l.id !== pendingDeleteId));
+  pendingDeleteId = null;
+  $('delete-dialog').close();
   render();
+  toast('Leak deleted');
 }
 
-function useCurrentLocation() {
-  if (!navigator.geolocation) {
-    toast('Location is not available in this browser');
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      // 3 decimal places is about 100 m: plenty for a 2 km weather grid.
-      $('lat').value = pos.coords.latitude.toFixed(3);
-      $('lon').value = pos.coords.longitude.toFixed(3);
-      toast('Location found - tap Save location');
-    },
-    () => toast('Could not get your location'),
-    { enableHighAccuracy: false, timeout: 15000 },
-  );
-}
-
-function saveLocation() {
-  const lat = parseFloat($('lat').value);
-  const lon = parseFloat($('lon').value);
-  if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) {
-    toast('Enter a valid latitude and longitude');
-    return;
-  }
-  saveSettings({ ...loadSettings(), lat, lon });
-  toast('Location saved on this phone');
-}
+// ---------- Export ----------
 
 function csvCell(value) {
   const text = value == null ? '' : String(value);
@@ -173,10 +209,13 @@ function csvCell(value) {
 }
 
 function exportCsv() {
-  const checks = loadChecks().sort((a, b) => a.time.localeCompare(b.time));
-  const header = ['time_utc', 'leak', 'severity', 'notes', 'id', 'created_at_utc'];
-  const rows = checks.map((c) =>
-    [c.time, c.leak ? 1 : 0, c.severity, c.notes, c.id, c.createdAt].map(csvCell).join(','));
+  const leaks = loadLeaks().sort((a, b) => a.from.localeCompare(b.from));
+  const started = trackingStartedAt();
+  const header = ['from_utc', 'to_utc', 'severity', 'volume_ml', 'notes', 'id',
+                  'created_at_utc', 'tracking_started_utc'];
+  const rows = leaks.map((l) =>
+    [l.from, l.to, l.severity, l.volumeMl, l.notes, l.id, l.createdAt, started]
+      .map(csvCell).join(','));
   const csv = [header.join(','), ...rows].join('\n');
 
   const link = document.createElement('a');
@@ -189,19 +228,23 @@ function exportCsv() {
 // ---------- Start up ----------
 
 function init() {
-  resetForm();
+  trackingStartedAt();
 
-  const { lat, lon } = loadSettings();
-  if (lat != null) $('lat').value = lat;
-  if (lon != null) $('lon').value = lon;
+  $('fab').addEventListener('click', openRecordDialog);
+  $('close-record').addEventListener('click', () => $('record-dialog').close());
+  $('leak-form').addEventListener('submit', addLeak);
 
-  $('check-form').addEventListener('submit', addCheck);
-  document.querySelectorAll('input[name="outcome"]').forEach((radio) =>
-    radio.addEventListener('change', () => {
-      $('severity-row').hidden = radio.value !== 'leak' || !radio.checked;
-    }));
-  $('use-location').addEventListener('click', useCurrentLocation);
-  $('save-location').addEventListener('click', saveLocation);
+  // Severity and volume can't both be entered: choosing one clears the other.
+  $('volume').addEventListener('input', () => {
+    if ($('volume').value !== '') {
+      document.querySelectorAll('input[name="severity"]').forEach((r) => { r.checked = false; });
+    }
+  });
+  document.querySelectorAll('input[name="severity"]').forEach((radio) =>
+    radio.addEventListener('change', () => { $('volume').value = ''; }));
+
+  $('cancel-delete').addEventListener('click', () => $('delete-dialog').close());
+  $('confirm-delete').addEventListener('click', confirmDelete);
   $('export-csv').addEventListener('click', exportCsv);
 
   render();

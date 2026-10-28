@@ -1,24 +1,45 @@
+/* Material Design 3 colour roles (blue scheme), light and dark. */
 :root {
-  --bg: #f4f6fa;
-  --card: #ffffff;
-  --text: #1a1f2b;
-  --muted: #5d6677;
-  --border: #d7dce5;
-  --accent: #1d4ed8;
-  --leak: #c2410c;
-  --dry: #15803d;
+  --md-primary: #415f91;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #d6e3ff;
+  --md-on-primary-container: #284777;
+  --md-secondary-container: #dae2f9;
+  --md-on-secondary-container: #3e4759;
+  --md-surface: #f9f9ff;
+  --md-surface-container-low: #f3f3fa;
+  --md-surface-container: #ededf4;
+  --md-surface-container-high: #e7e8ee;
+  --md-on-surface: #191c20;
+  --md-on-surface-variant: #44474e;
+  --md-outline: #74777f;
+  --md-outline-variant: #c4c6d0;
+  --md-error: #ba1a1a;
+  --md-inverse-surface: #2e3036;
+  --md-inverse-on-surface: #f0f0f7;
+  --sun: #f4b400;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #11151c;
-    --card: #1b212b;
-    --text: #e7ebf2;
-    --muted: #9aa4b5;
-    --border: #2e3644;
-    --accent: #6d8ff5;
-    --leak: #f08a5d;
-    --dry: #4ade80;
+    --md-primary: #aac7ff;
+    --md-on-primary: #0a305f;
+    --md-primary-container: #284777;
+    --md-on-primary-container: #d6e3ff;
+    --md-secondary-container: #3e4759;
+    --md-on-secondary-container: #dae2f9;
+    --md-surface: #111318;
+    --md-surface-container-low: #191c20;
+    --md-surface-container: #1d2024;
+    --md-surface-container-high: #282a2f;
+    --md-on-surface: #e2e2e9;
+    --md-on-surface-variant: #c4c6d0;
+    --md-outline: #8e9099;
+    --md-outline-variant: #44474e;
+    --md-error: #ffb4ab;
+    --md-inverse-surface: #e2e2e9;
+    --md-inverse-on-surface: #2e3036;
+    --sun: #fdd663;
   }
 }
 
@@ -27,121 +48,231 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
   line-height: 1.45;
 }
 
 header, main {
-  max-width: 560px;
+  max-width: 600px;
   margin: 0 auto;
   padding: 0 16px;
 }
 
-header { padding-top: 20px; }
-h1 { margin: 0; font-size: 1.6rem; }
-h2 { margin: 0 0 6px; font-size: 1.15rem; }
-h3 { margin: 18px 0 4px; font-size: 1rem; }
-.muted { color: var(--muted); font-size: 0.9rem; margin: 4px 0 12px; }
+header { padding-top: 24px; }
+main { padding-bottom: 104px; } /* room so the FAB never covers the last item */
 
+/* MD3 type scale: headline small, title medium, body medium */
+h1 { margin: 0; font-size: 1.5rem; font-weight: 400; }
+h2 { margin: 0 0 8px; font-size: 1rem; font-weight: 500; letter-spacing: 0.01em; }
+.supporting { color: var(--md-on-surface-variant); font-size: 0.875rem; margin: 4px 0 12px; }
+
+/* Filled card */
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--md-surface-container-low);
   border-radius: 12px;
   padding: 16px;
   margin: 16px 0;
 }
 
-label { display: block; margin: 12px 0; font-weight: 600; font-size: 0.95rem; }
+input, select, textarea, button { font: inherit; color: inherit; }
 
-input, select, textarea, button {
-  font: inherit;
-  color: inherit;
-}
+/* ---------- Buttons ---------- */
 
-input, select, textarea {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  font-weight: normal;
-}
-
-button {
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
+.btn {
+  height: 40px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 20px;
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
 }
-
-button.primary {
-  width: 100%;
-  margin-top: 8px;
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  padding: 14px;
+.btn.text { padding: 0 12px; color: var(--md-primary); }
+.btn.text.danger { color: var(--md-error); }
+.btn.tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.btn:hover { filter: brightness(0.96); }
+.btn:focus-visible, .icon-btn:focus-visible, .fab:focus-visible {
+  outline: 3px solid var(--md-primary);
+  outline-offset: 2px;
 }
 
-.row { display: flex; gap: 10px; flex-wrap: wrap; }
-.row > label { flex: 1 1 140px; margin: 6px 0; }
-.row > button { flex: 1 1 auto; margin: 6px 0; }
-
-/* Big Leak / Dry choice buttons */
-fieldset.choice { border: 0; padding: 0; margin: 12px 0; }
-fieldset.choice legend { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
-fieldset.choice { display: flex; gap: 10px; flex-wrap: wrap; }
-fieldset.choice legend { width: 100%; }
-.option { flex: 1; margin: 0; }
-.option input { position: absolute; opacity: 0; }
-.option span {
-  display: block;
-  text-align: center;
-  padding: 16px;
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  font-size: 1.1rem;
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
 }
-.option.leak input:checked + span { border-color: var(--leak); color: var(--leak); }
-.option.dry input:checked + span { border-color: var(--dry); color: var(--dry); }
-.option input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.icon-btn svg { fill: var(--md-on-surface); }
 
-/* History list */
+/* FAB: 56px, primary container, bottom right */
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--md-primary-container);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+}
+.fab svg { fill: var(--md-on-primary-container); }
+
+/* ---------- History ---------- */
+
 #history { list-style: none; margin: 0; padding: 0; }
 #history li {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  border-top: 1px solid var(--md-outline-variant);
 }
 #history li:first-child { border-top: 0; }
 .entry { flex: 1; min-width: 0; }
-.entry .when { font-weight: 600; }
-.entry .notes { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
-.badge { font-weight: 600; }
-.badge.leak { color: var(--leak); }
-.badge.dry { color: var(--dry); }
-.delete { padding: 6px 10px; font-size: 0.85rem; }
+.entry .when { font-weight: 500; }
+.entry .amount { color: var(--md-primary); font-size: 0.875rem; font-weight: 500; }
+.entry .notes { color: var(--md-on-surface-variant); font-size: 0.875rem; overflow-wrap: anywhere; }
 
-#toast {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
-  background: var(--text);
-  color: var(--bg);
-  padding: 10px 16px;
+.empty { text-align: center; padding: 16px 0 8px; color: var(--md-on-surface-variant); }
+.empty p { margin: 8px 0 0; }
+.sun-core { fill: var(--sun); }
+.sun-rays { stroke: var(--sun); }
+
+/* ---------- Dialogs ---------- */
+
+dialog {
+  border: 0;
+  padding: 0;
+  color: var(--md-on-surface);
+  background: var(--md-surface-container-high);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.32); }
+
+/* Full-screen dialog (record leak) */
+dialog.fullscreen {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  background: var(--md-surface);
+}
+.dialog-bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  padding: 0 8px 0 4px;
+  background: var(--md-surface);
+  z-index: 1;
+}
+.dialog-bar h2 { flex: 1; margin: 0; font-size: 1.375rem; font-weight: 400; }
+.dialog-body { max-width: 600px; margin: 0 auto; padding: 8px 24px 32px; }
+
+/* Basic dialog (delete) */
+dialog.basic {
+  width: min(312px, calc(100% - 48px));
+  border-radius: 28px;
+  padding: 24px;
+}
+dialog.basic h2 { font-size: 1.5rem; font-weight: 400; margin-bottom: 16px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+
+/* ---------- Form ---------- */
+
+fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
+legend { padding: 0; font-weight: 500; margin-bottom: 4px; }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row > .field { flex: 1 1 200px; }
+
+/* Outlined text field with the label above */
+.field { display: block; margin: 8px 0 16px; }
+.field > span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--md-on-surface-variant);
+  margin-bottom: 4px;
+}
+.field input, .field textarea {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 16px;
+  border: 1px solid var(--md-outline);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 1rem;
+  color-scheme: light dark;
+}
+.field textarea { min-height: 88px; resize: vertical; }
+.field input:focus, .field textarea:focus {
+  outline: none;
+  border: 2px solid var(--md-primary);
+  padding: 15px;
+}
+
+/* Single-select filter chips (severity). Chips wrap, so the long
+   "Spilled Sports Direct mug" label fits on a narrow phone. */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+.chip span {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--md-outline);
   border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.chip input:checked + span {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border-color: transparent;
+}
+.chip input:checked + span::before { content: "✓"; margin-right: 8px; }
+.chip input:focus-visible + span { outline: 3px solid var(--md-primary); outline-offset: 2px; }
+
+.or { margin: 4px 0; color: var(--md-on-surface-variant); font-size: 0.875rem; }
+.error { color: var(--md-error); font-size: 0.875rem; margin: 0; }
+
+/* ---------- Snackbar ---------- */
+
+.snackbar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 88px; /* sits above the FAB */
+  max-width: 568px;
+  margin: 0 auto;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 4px;
+  background: var(--md-inverse-surface);
+  color: var(--md-inverse-on-surface);
+  font-size: 0.875rem;
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
-  max-width: calc(100% - 32px);
+  z-index: 10;
 }
-#toast.show { opacity: 1; }
+.snackbar.show { opacity: 1; }

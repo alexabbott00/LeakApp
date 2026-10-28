@@ -2,6 +2,9 @@
 *.csv
 data/
 
+# Specs are kept on this computer only, not on GitHub
+specs/
+
 # Secrets: never commit keys or tokens
 .env
 .env.*
@@ -10,6 +13,7 @@ secrets*
 
 # Editor / OS clutter
 .claude/
+.obsidian/
 .vscode/
 .idea/
 Thumbs.db

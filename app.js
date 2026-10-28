@@ -47,12 +47,16 @@ function trackingStartedAt() {
 const $ = (id) => document.getElementById(id);
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Value for <input type="datetime-local">, in local time, e.g. "2026-10-28T14:05"
-function toLocalInputValue(date) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-         `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+// UK time, for the leak form's date and hour fields (only UK postcodes are
+// accepted, so the flat is always on UK time).
+const UK_ZONE = 'Europe/London';
+const ukDateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: UK_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+const ukHourFormat = new Intl.DateTimeFormat('en-GB', { timeZone: UK_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const ukDate = (ms) => ukDateFormat.format(ms); // "2026-10-28", as a date field wants
+const ukHour = (ms) => ukHourFormat.format(ms); // "17:00"
+// The UK is on GMT (same as UTC) in winter and BST in summer. Worked out
+// directly, since browsers can label winter time "GMT+0".
+const ukZoneName = (ms) => (ukHour(ms) === new Date(ms).toISOString().slice(11, 16) ? 'GMT' : 'BST');
 
 const formatDay = (date) =>
   date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -87,15 +91,23 @@ const describeAmount = (leak) => HOLE_NUMBERS
   .map((n) => `Hole ${n}: ${describeHole(leak.holes[n])}`)
   .join(' · ');
 
-// Leaks saved before there were two holes had one severity/volume: that
-// becomes hole 1, and hole 2 is empty.
+// Brings leaks saved by earlier versions up to date. Safe to run every time.
+// - One severity/volume (before two holes): becomes hole 1, hole 2 empty.
+// - Times with minutes (before whole hours): widened outwards to the hour,
+//   From down and To up, never less than an hour. Their leak/dry hours
+//   don't change, since those were always counted by the hour.
 function convertOldLeaks() {
   const leaks = loadLeaks();
-  if (leaks.every((leak) => leak.holes)) return;
+  const onTheHour = (iso) => Date.parse(iso) % HOUR === 0;
+  const isCurrent = (leak) => leak.holes && onTheHour(leak.from) && onTheHour(leak.to) && leak.to > leak.from;
+  if (leaks.every(isCurrent)) return;
   saveLeaks(leaks.map((leak) => {
-    if (leak.holes) return leak;
+    if (isCurrent(leak)) return leak;
     const { severity, volumeMl, ...rest } = leak;
-    return { ...rest, holes: { 1: { severity: volumeMl != null ? null : severity, volumeMl: volumeMl ?? null }, 2: null } };
+    const holes = leak.holes ?? { 1: { severity: volumeMl != null ? null : severity, volumeMl: volumeMl ?? null }, 2: null };
+    const from = floorHour(Date.parse(leak.from));
+    const to = Math.max(ceilHour(Date.parse(leak.to)), from + HOUR);
+    return { ...rest, holes, from: hourKey(from), to: hourKey(to) };
   }));
 }
 
@@ -183,25 +195,86 @@ function showRangeError(clash) {
   $('range-hint').hidden = !clash;
 }
 
+// --- When: a date plus an hour list for From and To ---
+//
+// Each hour option's value is the exact UTC time it stands for. A day's
+// hours are found by stepping through UTC hours and keeping those that fall
+// on that UK date, so the clock-change days come out right by themselves:
+// in October 01:00 appears twice (labelled BST and GMT), in March the
+// skipped hour never appears. Future hours are left out rather than warned
+// about.
+
+const latestFrom = () => floorHour(Date.now()); // the current hour
+const latestTo = () => latestFrom() + HOUR; // the end of the current hour
+
+function hoursOn(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const midnightUtc = Date.UTC(y, m - 1, d);
+  const hours = [];
+  for (let t = midnightUtc - 2 * HOUR; t < midnightUtc + 26 * HOUR; t += HOUR) {
+    if (ukDate(t) === dateStr) hours.push(t);
+  }
+  return hours;
+}
+
+const readHour = (id) => ($(id).value ? Number($(id).value) : NaN);
+
+// Fills an hour list with the allowed hours on dateStr, keeping the wanted
+// hour selected: the exact time if it's there, else the same clock time
+// (after a date change), else the nearest allowed hour.
+function fillHourList(select, dateStr, allowed, wantedMs, wantedLabel) {
+  const hours = dateStr ? hoursOn(dateStr).filter(allowed) : [];
+  const labels = hours.map(ukHour);
+  select.replaceChildren(...hours.map((t, i) => {
+    const repeated = labels.indexOf(labels[i]) !== labels.lastIndexOf(labels[i]);
+    return new Option(repeated ? `${labels[i]} (${ukZoneName(t)})` : labels[i], String(t));
+  }));
+  if (!hours.length) return;
+  const pick = hours.includes(wantedMs) ? wantedMs
+    : hours[labels.indexOf(wantedLabel)]
+    ?? (isNaN(wantedMs) ? hours[0]
+      : hours.reduce((a, b) => (Math.abs(b - wantedMs) < Math.abs(a - wantedMs) ? b : a)));
+  select.value = String(pick);
+}
+
+function fillFromHours(wantedMs, wantedLabel) {
+  $('from-date').max = ukDate(latestFrom());
+  fillHourList($('from-hour'), $('from-date').value, (t) => t <= latestFrom(), wantedMs, wantedLabel);
+}
+
+// To always ends after From: if From has moved to or past it (or To's date
+// is earlier than From's), To moves to one hour after From.
+function fillToHours(wantedMs, wantedLabel) {
+  const from = readHour('from-hour');
+  const toDateTooEarly = $('to-date').value && $('to-date').value < $('from-date').value;
+  if (!isNaN(from) && ((!isNaN(wantedMs) && wantedMs <= from) || toDateTooEarly)) {
+    wantedMs = from + HOUR;
+    wantedLabel = undefined;
+    $('to-date').value = ukDate(wantedMs);
+  }
+  $('to-date').min = $('from-date').value;
+  $('to-date').max = ukDate(latestTo());
+  const after = isNaN(from) ? () => true : (t) => t > from;
+  fillHourList($('to-hour'), $('to-date').value, (t) => after(t) && t <= latestTo(), wantedMs, wantedLabel);
+}
+
+// Defaults to the current time rounded outwards: at 17:20 (or 17:00 on the
+// dot), 17:00 to 18:00; at 23:20, 23:00 today to 00:00 tomorrow.
+function setWhen(fromMs, toMs) {
+  $('from-date').value = ukDate(fromMs);
+  fillFromHours(fromMs);
+  $('to-date').value = ukDate(toMs);
+  fillToHours(toMs);
+}
+
 function openRecordDialog() {
-  const now = toLocalInputValue(new Date());
   $('leak-form').reset();
   for (const n of HOLE_NUMBERS) $(`volume-${n}`).dataset.last = '';
-  for (const input of [$('leak-from'), $('leak-to')]) {
-    input.value = now;
-    input.max = now; // the phone's picker won't offer future times
-  }
+  setWhen(latestFrom(), latestTo());
   showRangeError(null);
   HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, false));
   $('record-dialog').showModal();
   $('record-dialog').scrollTop = 0; // always open at the top, not where it was last left
-}
-
-// A time later than now is pulled back to now.
-function keepInPast(input) {
-  const now = toLocalInputValue(new Date());
-  input.max = now;
-  if (input.value > now) input.value = now; // same format, so text comparison works
 }
 
 // Digits only, no leading zeros, and never above the maximum.
@@ -241,10 +314,10 @@ function findClash(fromIso, toIso) {
 function addLeak(event) {
   event.preventDefault();
 
-  keepInPast($('leak-from'));
-  keepInPast($('leak-to'));
-  let from = new Date($('leak-from').value);
-  let to = new Date($('leak-to').value);
+  // The hour lists only offer whole hours, not in the future, with To after
+  // From, so all that's left to check is a date left empty.
+  const from = new Date(readHour('from-hour'));
+  const to = new Date(readHour('to-hour'));
   const holes = Object.fromEntries(HOLE_NUMBERS.map((n) => [n, readHole(n)]));
   const noHole = HOLE_NUMBERS.every((n) => !holes[n]);
 
@@ -253,8 +326,6 @@ function addLeak(event) {
   setInvalid('to-field', isNaN(to));
   HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, noHole));
 
-  // "To" before "From" is almost certainly a slip, so swap them.
-  if (!isNaN(from) && !isNaN(to) && to < from) [from, to] = [to, from];
   const clash = !isNaN(from) && !isNaN(to) && findClash(from.toISOString(), to.toISOString());
   if (clash) showRangeError(clash);
 
@@ -627,13 +698,26 @@ function init() {
   $('close-record').addEventListener('click', () => $('record-dialog').close());
   $('leak-form').addEventListener('submit', addLeak);
 
-  for (const [inputId, fieldId] of [['leak-from', 'from-field'], ['leak-to', 'to-field']]) {
-    $(inputId).addEventListener('change', () => {
-      keepInPast($(inputId));
-      showRangeError(null); // a changed time clears any overlap warning
-      setInvalid(fieldId, !$(inputId).value);
-    });
-  }
+  // Any change to the times clears the overlap warning and re-checks which
+  // hours are on offer. A date change keeps the same clock time if it can.
+  const whenChanged = () => {
+    showRangeError(null);
+    setInvalid('from-field', isNaN(readHour('from-hour')));
+    setInvalid('to-field', isNaN(readHour('to-hour')));
+  };
+  $('from-date').addEventListener('change', () => {
+    const fromLabel = $('from-hour').selectedOptions[0]?.textContent.slice(0, 5);
+    fillFromHours(readHour('from-hour'), fromLabel);
+    fillToHours(readHour('to-hour'));
+    whenChanged();
+  });
+  $('from-hour').addEventListener('change', () => { fillToHours(readHour('to-hour')); whenChanged(); });
+  $('to-date').addEventListener('change', () => {
+    const toLabel = $('to-hour').selectedOptions[0]?.textContent.slice(0, 5);
+    fillToHours(NaN, toLabel);
+    whenChanged();
+  });
+  $('to-hour').addEventListener('change', whenChanged);
 
   for (const n of HOLE_NUMBERS) {
     $(`volume-${n}`).addEventListener('input', () => cleanVolume(n));

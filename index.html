@@ -83,15 +83,21 @@
           <legend>When did it leak?</legend>
           <p class="supporting">If you found it after being out, pick the
             whole time you were away.</p>
-          <div class="row">
-            <label class="field" id="from-field">
-              <span>From</span>
-              <input type="datetime-local" id="leak-from" required>
-            </label>
-            <label class="field" id="to-field">
-              <span>To</span>
-              <input type="datetime-local" id="leak-to" required>
-            </label>
+          <!-- Whole hours only: a date plus an hour list (the phone's own
+               date/time picker can't be limited to hours). -->
+          <div class="field" id="from-field">
+            <span>From</span>
+            <div class="when-row">
+              <input type="date" id="from-date" aria-label="From date" required>
+              <select id="from-hour" aria-label="From hour"></select>
+            </div>
+          </div>
+          <div class="field" id="to-field">
+            <span>To</span>
+            <div class="when-row">
+              <input type="date" id="to-date" aria-label="To date" required>
+              <select id="to-hour" aria-label="To hour"></select>
+            </div>
           </div>
           <small id="range-hint" class="hint" hidden></small>
         </fieldset>

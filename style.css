@@ -282,6 +282,21 @@ fieldset.section-card .row > .field { margin-bottom: 0; }
 fieldset.section-card.invalid { border-color: var(--md-error); }
 #range-hint { margin-top: 8px; }
 
+/* From / To: date field and hour dropdown side by side. */
+.when-row { display: grid; grid-template-columns: 1fr 8.5rem; gap: 8px; }
+fieldset.section-card #to-field { margin-bottom: 0; }
+/* MD3 exposed dropdown: outlined field with a down arrow. */
+.field .when-row select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+.field select option { background: var(--md-surface); color: var(--md-on-surface); }
+
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
 .row > .field { flex: 1 1 200px; }
 
@@ -293,7 +308,7 @@ fieldset.section-card.invalid { border-color: var(--md-error); }
   color: var(--md-on-surface-variant);
   margin-bottom: 4px;
 }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   display: block;
   width: 100%;
   min-height: 56px;
@@ -305,7 +320,7 @@ fieldset.section-card.invalid { border-color: var(--md-error); }
   color-scheme: light dark;
 }
 .field textarea { min-height: 88px; resize: vertical; }
-.field input:focus, .field textarea:focus {
+.field input:focus, .field textarea:focus, .field select:focus {
   outline: none;
   border: 2px solid var(--md-primary);
   padding: 15px;
@@ -340,17 +355,17 @@ fieldset.section-card.invalid { border-color: var(--md-error); }
 /* Required but empty: shown in red, with no message (general design rules). */
 .field.invalid > span,
 fieldset.invalid > legend { color: var(--md-error); }
-.field.invalid input,
+.field.invalid input, .field.invalid select,
 fieldset.invalid .field input,
 fieldset.invalid .chip span { border-color: var(--md-error); }
-.field.invalid input,
+.field.invalid input, .field.invalid select,
 fieldset.invalid .field input { border-width: 2px; padding: 15px; }
 /* Hint shown only when the value is wrong, not just empty. */
 .hint { display: block; margin-top: 4px; font-size: 0.75rem; color: var(--md-error); }
 
 /* ---------- Motion ---------- */
 
-.field input, .field textarea, .chip span, .field > span, legend {
+.field input, .field textarea, .field select, .chip span, .field > span, legend {
   transition: border-color var(--dur-short) var(--ease-standard),
               background-color var(--dur-short) var(--ease-standard),
               color var(--dur-short) var(--ease-standard);

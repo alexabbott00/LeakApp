@@ -201,30 +201,6 @@ function confirmDelete() {
   toast('Leak deleted');
 }
 
-// ---------- Export ----------
-
-function csvCell(value) {
-  const text = value == null ? '' : String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function exportCsv() {
-  const leaks = loadLeaks().sort((a, b) => a.from.localeCompare(b.from));
-  const started = trackingStartedAt();
-  const header = ['from_utc', 'to_utc', 'severity', 'volume_ml', 'notes', 'id',
-                  'created_at_utc', 'tracking_started_utc'];
-  const rows = leaks.map((l) =>
-    [l.from, l.to, l.severity, l.volumeMl, l.notes, l.id, l.createdAt, started]
-      .map(csvCell).join(','));
-  const csv = [header.join(','), ...rows].join('\n');
-
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  link.download = `leak-log-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 // ---------- Start up ----------
 
 function init() {
@@ -245,8 +221,6 @@ function init() {
 
   $('cancel-delete').addEventListener('click', () => $('delete-dialog').close());
   $('confirm-delete').addEventListener('click', confirmDelete);
-  $('export-csv').addEventListener('click', exportCsv);
-
   render();
 
   // Ask the browser not to clear our data when the phone is low on space.

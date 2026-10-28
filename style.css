@@ -93,7 +93,6 @@ input, select, textarea, button { font: inherit; color: inherit; }
 }
 .btn.text { padding: 0 12px; color: var(--md-primary); }
 .btn.text.danger { color: var(--md-error); }
-.btn.tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .btn:hover { filter: brightness(0.96); }
 .btn:focus-visible, .icon-btn:focus-visible, .fab:focus-visible {
   outline: 3px solid var(--md-primary);

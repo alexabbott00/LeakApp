@@ -458,7 +458,7 @@
   function compareCard(model) {
     const card = cardShell('compare', 'Leak hours vs rainy hours',
       'The typical value (dot) and the middle half of values (bar), for rainy hours with a leak and without one. ' +
-      'The data window changes whether the rain readings from before a leak was recorded are included, ' +
+      'The rain data window changes whether the rain readings from before a leak was recorded are included, ' +
       'because leaks sometimes take a while to come through.');
     const blocked = compareBlocker(model);
     if (blocked) {
@@ -472,7 +472,7 @@
     const sample = h('p', { class: 'sample',
       text: `Based on ${plural(groups.leak.rain.length, 'leak hour')} and ${plural(groups.rainy.rain.length, 'rainy hour')}.` });
 
-    const windowTitle = h('div', { class: 'control-title', id: 'data-window-title', text: 'Data window' });
+    const windowTitle = h('div', { class: 'control-title', id: 'data-window-title', text: 'Rain data window' });
     const control = h('div', { class: 'segmented', role: 'radiogroup', 'aria-labelledby': 'data-window-title' },
       ...RAIN_WINDOWS.map(([n, label]) => h('label', {},
         h('input', { type: 'radio', name: 'rain-window', value: String(n), checked: n === windowHours }), h('span', { text: label }))));

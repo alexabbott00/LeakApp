@@ -20,7 +20,8 @@ south-westerly gusts, that points at one side of the roof.
 - Tap a leak in the history to change it, e.g. to add water you found
   later.
 - Open the **Insights** tab to compare the weather during leaks with dry
-  weather. It needs a few leaks logged before it can compare them.
+  weather. It needs a few leaks logged before it can compare them. Dry hours
+  are hidden by default; turn off **Hide dry hours** to compare.
 - You don't log dry spells: any time without a logged leak counts as dry,
   from the day the app was first opened.
 - To back up or analyse your data, use **Settings → Export CSV**. It saves

@@ -25,6 +25,8 @@
     leakId: null, // leak shown in the timeline
     selected: null, // hour picked in the timeline (slot number)
     rainWindow: 6,
+    hideDry: true, // charts 2 and 3 show leak hours only until this is switched off
+    refocus: null, // a control to put keyboard focus back on after a redraw
     sector: null, // direction picked in the wind rose
     tables: { timeline: false, compare: false, rose: false }, // "Show table" per chart
     signature: '', // what was last drawn, so unchanged data isn't redrawn
@@ -418,6 +420,21 @@
 
   // ---------- Chart 2: leak hours vs dry hours ----------
 
+  // "Hide dry hours": one setting shared by charts 2 and 3, so they never
+  // disagree. Scales stay put when it's switched, so the leak marks don't jump.
+  function hideDrySwitch(key) {
+    const id = `${key}-hide-dry`;
+    const input = h('input', { type: 'checkbox', role: 'switch', id, checked: state.hideDry });
+    input.addEventListener('change', () => {
+      state.hideDry = input.checked;
+      state.refocus = `#${id}`;
+      renderInsights(true);
+    });
+    return h('label', { class: 'switch' }, input,
+      h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-thumb' })),
+      h('span', { text: 'Hide dry hours' }));
+  }
+
   function compareCard(model) {
     const card = cardShell('compare', 'Leak hours vs dry hours',
       'The typical value (dot) and the middle half of values (bar) when it leaked and when it was dry.');
@@ -428,13 +445,19 @@
     const windowHours = state.rainWindow;
     const windowLabel = RAIN_WINDOWS.find(([n]) => n === windowHours)[1].toLowerCase();
     const groups = compareValues(model, windowHours);
+    const kinds = state.hideDry ? ['leak'] : ['leak', 'dry']; // the groups shown
     const sample = h('p', { class: 'sample',
-      text: `Based on ${plural(groups.leak.rain.length, 'leak hour')} and ${plural(groups.dry.rain.length, 'dry hour')}.` });
+      text: `Based on ${plural(groups.leak.rain.length, 'leak hour')}` +
+        `${state.hideDry ? '' : ` and ${plural(groups.dry.rain.length, 'dry hour')}`}.` });
 
     const control = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Rain over' },
       ...RAIN_WINDOWS.map(([n, label]) => h('label', {},
         h('input', { type: 'radio', name: 'rain-window', value: String(n), checked: n === windowHours }), h('span', { text: label }))));
-    control.addEventListener('change', (event) => { state.rainWindow = Number(event.target.value); renderInsights(true); });
+    control.addEventListener('change', (event) => {
+      state.rainWindow = Number(event.target.value);
+      state.refocus = `input[name="rain-window"][value="${state.rainWindow}"]`;
+      renderInsights(true);
+    });
 
     const measures = [
       ['rain', `Rain, ${windowLabel} (mm)`, 'mm', 1],
@@ -454,7 +477,7 @@
       }
       const top = niceCeil(Math.max(0.5, ...['leak', 'dry'].map((kind) => stats[kind]?.q3 ?? 0)));
       const at = (v) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`;
-      const rows = ['leak', 'dry'].map((kind) => {
+      const rows = kinds.map((kind) => {
         const st = stats[kind];
         const label = h('span', { class: 'range-label' }, swatch(kind), kind === 'leak' ? 'Leak' : 'Dry');
         const track = h('div', { class: 'range-track' });
@@ -472,7 +495,7 @@
         }
         return h('div', { class: 'range-row' }, label, track, value);
       });
-      summary.push(`${title}: ` + ['leak', 'dry'].map((kind) => stats[kind]
+      summary.push(`${title}: ` + kinds.map((kind) => stats[kind]
         ? `${kind} hours typically ${stats[kind].median.toFixed(digits)} ${unit}`
         : `no ${kind} hours`).join(', ') + '.');
       blocks.append(h('div', { class: 'compare-block' },
@@ -481,12 +504,12 @@
         h('div', { class: 'range-axis' }, h('span', { text: '0' }), h('span', { text: `${top} ${unit}` }))));
     }
 
-    const key = legend(['leak', 'Leak hours'], ['dry', 'Dry hours']);
+    const key = legend(['leak', 'Leak hours'], ...(state.hideDry ? [] : [['dry', 'Dry hours']]));
     const chart = h('div', { class: 'chart-block' }, blocks);
     const tableBlock = table(`Leak hours vs dry hours, rain ${windowLabel}`,
       ['Measure', 'Hours', 'Typical (median)', 'Lower quarter', 'Upper quarter', 'Number of hours'], tableRows);
     tableBlock.classList.add('table-block');
-    card.append(sample, key, chart, summaryNode('compare', summary.join(' ')));
+    card.append(sample, hideDrySwitch('compare'), key, chart, summaryNode('compare', summary.join(' ')));
     addTableToggle(card, 'compare', [key, chart], tableBlock);
     return { card };
   }
@@ -504,24 +527,28 @@
     const totals = { leak: counts.leak.reduce((a, b) => a + b, 0), dry: counts.dry.reduce((a, b) => a + b, 0) };
     const share = (kind, k) => (totals[kind] ? counts[kind][k] / totals[kind] : 0);
     const best = (kind) => counts[kind].reduce((top, c, k) => (c > counts[kind][top] ? k : top), 0);
-    const sentence = (k) => `${SECTORS[k]}: ${percent(share('leak', k))} of leak hours (${count(counts.leak[k])}) and ${percent(share('dry', k))} of dry hours (${count(counts.dry[k])})`;
+    const hideDry = state.hideDry;
+    const sentence = (k) => `${SECTORS[k]}: ${percent(share('leak', k))} of leak hours (${count(counts.leak[k])})` +
+      (hideDry ? '' : ` and ${percent(share('dry', k))} of dry hours (${count(counts.dry[k])})`);
 
     const sample = h('p', { class: 'sample',
-      text: `Based on ${plural(totals.leak, 'leak hour')} and ${plural(totals.dry, 'dry hour')}.` });
-    const key = legend(['leak', 'Leak hours'], ['dry', 'Dry hours']);
+      text: `Based on ${plural(totals.leak, 'leak hour')}${hideDry ? '' : ` and ${plural(totals.dry, 'dry hour')}`}.` });
+    const key = legend(['leak', 'Leak hours'], ...(hideDry ? [] : [['dry', 'Dry hours']]));
     const chart = h('div', { class: 'chart-block viz rose' });
     const readout = h('p', { class: 'readout', 'aria-live': 'polite' });
-    const tableBlock = table('Wind direction for leak hours and dry hours',
-      ['Wind from', 'Leak hours', 'Share of leak hours', 'Dry hours', 'Share of dry hours'],
-      SECTORS.map((name, k) => [name, count(counts.leak[k]), percent(share('leak', k)), count(counts.dry[k]), percent(share('dry', k))]));
+    const tableBlock = table(hideDry ? 'Wind direction for leak hours' : 'Wind direction for leak hours and dry hours',
+      ['Wind from', 'Leak hours', 'Share of leak hours', ...(hideDry ? [] : ['Dry hours', 'Share of dry hours'])],
+      SECTORS.map((name, k) => [name, count(counts.leak[k]), percent(share('leak', k)),
+        ...(hideDry ? [] : [count(counts.dry[k]), percent(share('dry', k))])]));
     tableBlock.classList.add('table-block');
     const defaultReadout = totals.leak
-      ? `Most leak hours: wind from ${SECTORS[best('leak')]} (${percent(share('leak', best('leak')))}). Most dry hours: ${SECTORS[best('dry')]} (${percent(share('dry', best('dry')))}). Tap a direction for its numbers.`
+      ? `Most leak hours: wind from ${SECTORS[best('leak')]} (${percent(share('leak', best('leak')))}).` +
+        `${hideDry ? '' : ` Most dry hours: ${SECTORS[best('dry')]} (${percent(share('dry', best('dry')))}).`} Tap a direction for its numbers.`
       : 'No leak hours with weather yet.';
     readout.textContent = defaultReadout;
 
     const caption = h('p', { class: 'supporting small' });
-    card.append(sample, key, chart, readout, caption,
+    card.append(sample, hideDrySwitch('rose'), key, chart, readout, caption,
       summaryNode('rose', `Wind direction. ${totals.leak ? `Most leak hours had wind from ${SECTORS[best('leak')]}, ${percent(share('leak', best('leak')))} of them. ` : ''}${SECTORS.map((_, k) => sentence(k)).join('. ')}.`));
     addTableToggle(card, 'rose', [key, chart, readout, caption], tableBlock);
 
@@ -549,7 +576,7 @@
         const rLeak = (share('leak', k) / ringMax) * radius;
         const rDry = (share('dry', k) / ringMax) * radius;
         if (rLeak > 0) svg.append(s('path', { class: 'wedge leak grow-out', d: wedge(angle - 19, angle - 1, rLeak), style: `transform-origin:${centreX}px ${centreX}px` }));
-        if (rDry > 0) svg.append(s('path', { class: 'wedge dry grow-out', d: wedge(angle + 1, angle + 19, rDry), style: `transform-origin:${centreX}px ${centreX}px` }));
+        if (rDry > 0 && !hideDry) svg.append(s('path', { class: 'wedge dry grow-out', d: wedge(angle + 1, angle + 19, rDry), style: `transform-origin:${centreX}px ${centreX}px` }));
         const [lx, ly] = point(angle, radius + 18);
         svg.append(s('text', { class: 'compass', x: lx, y: ly + 4, 'text-anchor': 'middle', text: name }));
       });
@@ -580,7 +607,7 @@
     const model = buildModel();
     const width = Math.round(root.clientWidth);
     const signature = JSON.stringify([model.leaks.map((l) => [l.id, l.from, l.to, l.updatedAt ?? '']),
-      hours.size, model.lastFinal, !!loadLocation(), width, state.leakId, state.rainWindow]);
+      hours.size, model.lastFinal, !!loadLocation(), width, state.leakId, state.rainWindow, state.hideDry]);
     if (!force && signature === state.signature) return;
     state.signature = signature;
     state.model = model;
@@ -608,6 +635,10 @@
     const cards = [timelineCard(model), compareCard(model), roseCard(model)];
     root.append(...cards.map(({ card }) => card));
     cards.forEach(({ draw }) => draw?.()); // charts that need the real width are drawn now it's on the page
+    if (state.refocus) { // a control was used and the cards were rebuilt: keep keyboard focus on it
+      root.querySelector(state.refocus)?.focus();
+      state.refocus = null;
+    }
   }
 
   function initInsights() {

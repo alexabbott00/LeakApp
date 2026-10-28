@@ -8,6 +8,7 @@
 
 const LEAKS_KEY = 'leakLog.leaks.v1';
 const TRACKING_KEY = 'leakLog.trackingStartedAt';
+const MAX_VOLUME_ML = 10000;
 
 // ---------- Storage ----------
 
@@ -40,6 +41,7 @@ function trackingStartedAt() {
 // ---------- Helpers ----------
 
 const $ = (id) => document.getElementById(id);
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Value for <input type="datetime-local">, in local time, e.g. "2026-10-28T14:05"
 function toLocalInputValue(date) {
@@ -83,7 +85,8 @@ function toast(message) {
 
 // ---------- Rendering ----------
 
-function render() {
+// newId: a leak that was just added, so it can animate in.
+function render(newId) {
   const leaks = loadLeaks().sort((a, b) => b.from.localeCompare(a.from));
   const since = new Date(trackingStartedAt()).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
@@ -98,6 +101,8 @@ function render() {
 
   for (const leak of leaks) {
     const li = document.createElement('li');
+    li.dataset.id = leak.id;
+    if (leak.id === newId) li.classList.add('entering');
 
     const entry = document.createElement('div');
     entry.className = 'entry';
@@ -131,39 +136,68 @@ function render() {
 }
 
 // ---------- Record leak ----------
+//
+// Bad values are blocked as they're entered, rather than reported on save.
+// Only a required field left empty is flagged, by turning it red.
+
+const severityRadios = () => document.querySelectorAll('input[name="severity"]');
+
+function setInvalid(id, invalid) {
+  $(id).classList.toggle('invalid', invalid);
+}
 
 function openRecordDialog() {
   const now = toLocalInputValue(new Date());
   $('leak-form').reset();
+  cleanVolume.last = '';
   for (const input of [$('leak-from'), $('leak-to')]) {
     input.value = now;
     input.max = now; // the phone's picker won't offer future times
   }
-  showError('');
+  ['from-field', 'to-field', 'amount'].forEach((id) => setInvalid(id, false));
   $('record-dialog').showModal();
   $('record-dialog').scrollTop = 0; // always open at the top, not where it was last left
 }
 
-function showError(message) {
-  $('form-error').textContent = message;
-  $('form-error').hidden = !message;
+// A time later than now is pulled back to now.
+function keepInPast(input) {
+  const now = toLocalInputValue(new Date());
+  input.max = now;
+  if (input.value > now) input.value = now; // same format, so text comparison works
+}
+
+// Digits only, no leading zeros, and never above the maximum.
+function cleanVolume() {
+  const input = $('volume');
+  let digits = input.value.replace(/\D/g, '').replace(/^0+/, '');
+  if (Number(digits) > MAX_VOLUME_ML) digits = cleanVolume.last ?? '';
+  input.value = digits;
+  cleanVolume.last = digits;
+
+  // Severity and volume can't both be entered: typing a volume clears the severity.
+  if (digits) {
+    severityRadios().forEach((r) => { r.checked = false; });
+    setInvalid('amount', false);
+  }
 }
 
 function addLeak(event) {
   event.preventDefault();
 
+  keepInPast($('leak-from'));
+  keepInPast($('leak-to'));
   let from = new Date($('leak-from').value);
   let to = new Date($('leak-to').value);
   const severity = document.querySelector('input[name="severity"]:checked')?.value ?? null;
-  const volumeText = $('volume').value.trim();
-  const volume = Number(volumeText);
+  const volume = $('volume').value ? Number($('volume').value) : null;
 
-  if (isNaN(from) || isNaN(to)) return showError('Enter both a From and a To time.');
-  if (from > Date.now() || to > Date.now()) return showError("Leak times can't be in the future.");
-  if (!severity && !volumeText) return showError('Pick how bad it was, or enter the spill volume.');
-  if (severity && volumeText) return showError('Pick a severity or enter a volume, not both.');
-  if (volumeText && !(Number.isInteger(volume) && volume >= 1)) {
-    return showError('Spill volume must be a whole number of ml, 1 or more.');
+  setInvalid('from-field', isNaN(from));
+  setInvalid('to-field', isNaN(to));
+  setInvalid('amount', !severity && !volume);
+  const firstInvalid = document.querySelector('#leak-form .invalid');
+  if (firstInvalid) {
+    firstInvalid.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+    return;
   }
 
   // "To" before "From" is almost certainly a slip, so swap them.
@@ -173,15 +207,15 @@ function addLeak(event) {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     from: from.toISOString(), // stored in UTC so it lines up with weather data later
     to: to.toISOString(),
-    severity: volumeText ? null : severity,
-    volumeMl: volumeText ? volume : null,
+    severity: volume ? null : severity,
+    volumeMl: volume,
     notes: $('notes').value.trim(),
     createdAt: new Date().toISOString(),
   };
 
   saveLeaks([...loadLeaks(), leak]);
   $('record-dialog').close();
-  render();
+  render(leak.id);
   toast('Leak logged');
 }
 
@@ -195,11 +229,22 @@ function askToDelete(id) {
 }
 
 function confirmDelete() {
-  saveLeaks(loadLeaks().filter((l) => l.id !== pendingDeleteId));
+  const id = pendingDeleteId;
   pendingDeleteId = null;
+  saveLeaks(loadLeaks().filter((l) => l.id !== id));
   $('delete-dialog').close();
-  render();
   toast('Leak deleted');
+
+  // Let the row slide away before the list is redrawn. The timer is a
+  // fallback: browsers can pause animations (e.g. app in the background),
+  // and then the animation's end never fires.
+  const row = [...$('history').children].find((li) => li.dataset.id === id);
+  if (!row || reduceMotion()) return render();
+  row.classList.add('leaving');
+  let done = false;
+  const finish = () => { if (!done) { done = true; render(); } };
+  row.addEventListener('animationend', finish, { once: true });
+  setTimeout(finish, 400);
 }
 
 // ---------- Start up ----------
@@ -211,17 +256,24 @@ function init() {
   $('close-record').addEventListener('click', () => $('record-dialog').close());
   $('leak-form').addEventListener('submit', addLeak);
 
-  // Severity and volume can't both be entered: choosing one clears the other.
-  $('volume').addEventListener('input', () => {
-    if ($('volume').value !== '') {
-      document.querySelectorAll('input[name="severity"]').forEach((r) => { r.checked = false; });
-    }
-  });
-  document.querySelectorAll('input[name="severity"]').forEach((radio) =>
-    radio.addEventListener('change', () => { $('volume').value = ''; }));
+  for (const [inputId, fieldId] of [['leak-from', 'from-field'], ['leak-to', 'to-field']]) {
+    $(inputId).addEventListener('change', () => {
+      keepInPast($(inputId));
+      setInvalid(fieldId, !$(inputId).value);
+    });
+  }
+
+  $('volume').addEventListener('input', cleanVolume);
+  severityRadios().forEach((radio) =>
+    radio.addEventListener('change', () => {
+      $('volume').value = '';
+      cleanVolume.last = '';
+      setInvalid('amount', false);
+    }));
 
   $('cancel-delete').addEventListener('click', () => $('delete-dialog').close());
   $('confirm-delete').addEventListener('click', confirmDelete);
+
   render();
 
   // Ask the browser not to clear our data when the phone is low on space.

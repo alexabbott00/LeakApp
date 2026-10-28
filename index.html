@@ -65,18 +65,18 @@
           <p class="supporting">If you found it after being out, pick the
             whole time you were away.</p>
           <div class="row">
-            <label class="field">
+            <label class="field" id="from-field">
               <span>From</span>
               <input type="datetime-local" id="leak-from" required>
             </label>
-            <label class="field">
+            <label class="field" id="to-field">
               <span>To</span>
               <input type="datetime-local" id="leak-to" required>
             </label>
           </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset id="amount">
           <legend>How bad was it?</legend>
           <div class="chips">
             <label class="chip"><input type="radio" name="severity" value="low"><span>Low</span></label>
@@ -87,7 +87,8 @@
           <p class="or">or</p>
           <label class="field">
             <span>Spill volume (ml)</span>
-            <input type="number" id="volume" min="1" step="1" inputmode="numeric">
+            <!-- Text, not number: a number field lets ".", "-" and "e" through. -->
+            <input type="text" id="volume" inputmode="numeric" autocomplete="off">
           </label>
         </fieldset>
 
@@ -99,7 +100,6 @@
 
       <!-- Save sits at the bottom, within thumb reach, and stays visible while scrolling. -->
       <div class="dialog-footer">
-        <p id="form-error" class="error" role="alert" hidden></p>
         <button type="submit" class="btn filled">Save</button>
       </div>
     </form>

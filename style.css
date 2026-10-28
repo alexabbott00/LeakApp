@@ -18,6 +18,14 @@
   --md-inverse-surface: #2e3036;
   --md-inverse-on-surface: #f0f0f7;
   --sun: #f4b400;
+
+  /* MD3 motion: easing curves and durations */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);   /* emphasized decelerate */
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);    /* emphasized accelerate */
+  --dur-short: 150ms;
+  --dur-medium: 300ms;
+  --dur-long: 400ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -158,7 +166,6 @@ dialog {
   color: var(--md-on-surface);
   background: var(--md-surface-container-high);
 }
-dialog::backdrop { background: rgba(0, 0, 0, 0.32); }
 
 /* Full-screen dialog (record leak) */
 dialog.fullscreen {
@@ -191,7 +198,6 @@ dialog.fullscreen form { display: flex; flex-direction: column; min-height: 100%
   border-top: 1px solid var(--md-outline-variant);
 }
 .dialog-footer .btn { display: block; width: 100%; max-width: 552px; margin: 0 auto; }
-.dialog-footer .error { max-width: 552px; margin: 0 auto 8px; }
 
 /* Basic dialog (delete) */
 dialog.basic {
@@ -261,7 +267,61 @@ legend { padding: 0; font-weight: 500; margin-bottom: 4px; }
 .chip input:focus-visible + span { outline: 3px solid var(--md-primary); outline-offset: 2px; }
 
 .or { margin: 4px 0; color: var(--md-on-surface-variant); font-size: 0.875rem; }
-.error { color: var(--md-error); font-size: 0.875rem; margin: 0; }
+
+/* Required but empty: shown in red, with no message (general design rules). */
+.field.invalid > span,
+fieldset.invalid > legend { color: var(--md-error); }
+.field.invalid input,
+fieldset.invalid .field input,
+fieldset.invalid .chip span { border-color: var(--md-error); }
+.field.invalid input,
+fieldset.invalid .field input { border-width: 2px; padding: 15px; }
+
+/* ---------- Motion ---------- */
+
+.field input, .field textarea, .chip span, .field > span, legend {
+  transition: border-color var(--dur-short) var(--ease-standard),
+              background-color var(--dur-short) var(--ease-standard),
+              color var(--dur-short) var(--ease-standard);
+}
+
+/* Dialogs: enter slower and decelerating, leave faster and accelerating.
+   @starting-style gives the "from" state when a dialog opens. */
+dialog {
+  opacity: 0;
+  transition: opacity var(--dur-short) var(--ease-exit),
+              transform var(--dur-short) var(--ease-exit),
+              overlay var(--dur-short) allow-discrete,
+              display var(--dur-short) allow-discrete;
+}
+dialog[open] {
+  opacity: 1;
+  transition-duration: var(--dur-long);
+  transition-timing-function: var(--ease-enter);
+}
+dialog.fullscreen { transform: translateY(64px); }
+dialog.basic { transform: scale(0.9); }
+dialog.fullscreen[open], dialog.basic[open] { transform: none; }
+@starting-style {
+  dialog[open] { opacity: 0; }
+  dialog.fullscreen[open] { transform: translateY(64px); }
+  dialog.basic[open] { transform: scale(0.9); }
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0);
+  transition: background-color var(--dur-medium) var(--ease-standard),
+              overlay var(--dur-medium) allow-discrete,
+              display var(--dur-medium) allow-discrete;
+}
+dialog[open]::backdrop { background: rgba(0, 0, 0, 0.32); }
+@starting-style { dialog[open]::backdrop { background: rgba(0, 0, 0, 0); } }
+
+/* History rows */
+@keyframes row-enter { from { opacity: 0; transform: translateY(-12px); } }
+@keyframes row-leave { to { opacity: 0; transform: translateX(32px); } }
+#history li.entering { animation: row-enter var(--dur-long) var(--ease-enter); }
+#history li.leaving { animation: row-leave var(--dur-medium) var(--ease-exit) forwards; }
 
 /* ---------- Snackbar ---------- */
 
@@ -281,8 +341,23 @@ legend { padding: 0; font-weight: 500; margin-bottom: 4px; }
   color: var(--md-inverse-on-surface);
   font-size: 0.875rem;
   opacity: 0;
-  transition: opacity 0.2s;
+  transform: translateY(16px);
+  transition: opacity var(--dur-short) var(--ease-exit),
+              transform var(--dur-short) var(--ease-exit);
   pointer-events: none;
   z-index: 10;
 }
-.snackbar.show { opacity: 1; }
+.snackbar.show {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--dur-medium);
+  transition-timing-function: var(--ease-enter);
+}
+
+/* Phone set to reduce motion: no animation at all. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, dialog::backdrop {
+    transition: none !important;
+    animation: none !important;
+  }
+}

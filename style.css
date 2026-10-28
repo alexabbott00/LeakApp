@@ -185,6 +185,13 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .wx { display: inline-flex; align-items: center; gap: 4px; }
 .wx-icon { width: 18px; height: 18px; fill: var(--md-primary); flex: none; }
 .wx-arrow { width: 14px; height: 14px; fill: var(--md-on-surface-variant); flex: none; }
+.wx-icon.wx-stroke {
+  fill: none;
+  stroke: var(--md-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* "Set your location" card */
 .card.prompt {

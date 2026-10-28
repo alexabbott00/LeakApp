@@ -767,17 +767,19 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const ICON_PATHS = {
   rain: ['M12 2.7c-.3 0-.6.1-.8.4C9.6 5 6 9.6 6 13.5a6 6 0 0 0 12 0c0-3.9-3.6-8.5-5.2-10.4-.2-.3-.5-.4-.8-.4z'],
   wind: ['M14.5 17c0 1.65-1.35 3-3 3s-3-1.35-3-3h2c0 .55.45 1 1 1s1-.45 1-1-.45-1-1-1H2v-2h9.5c1.65 0 3 1.35 3 3zM19 6.5C19 4.57 17.43 3 15.5 3S12 4.57 12 6.5h2c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S16.33 8 15.5 8H2v2h13.5c1.93 0 3.5-1.57 3.5-3.5zm-.5 4.5H2v2h16.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5v2c1.93 0 3.5-1.57 3.5-3.5S20.43 11 18.5 11z'],
-  // The wind icon, a little smaller, with an up-chevron for "strongest".
-  gust: ['M10.9 19.2c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5h1.7c0 .5.4.8.8.8s.8-.4.8-.8-.4-.8-.8-.8H1v-1.7h7.4c1.4 0 2.5 1.1 2.5 2.5zM14.3 11.2c1.6 0 2.9 1.3 2.9 2.9s-1.3 2.9-2.9 2.9v-1.7c.7 0 1.2-.5 1.2-1.2s-.5-1.2-1.2-1.2H1v-1.7zM12 8.7c0-1.6-1.3-2.9-2.9-2.9S6.2 7.1 6.2 8.7h1.7c0-.7.5-1.2 1.2-1.2s1.2.5 1.2 1.2-.5 1.2-1.2 1.2H1v1.3h8.1c1.6 0 2.9-1.3 2.9-2.9z',
-         'M19 2l4 4-1.4 1.4L19 4.8l-2.6 2.6L15 6z'],
+  // Three speed lines and a bolt: a sudden burst. Drawn as lines, not filled
+  // shapes (see STROKE_ICONS), so it stays crisp at 18 px.
+  gust: ['M2 7h7', 'M2 12h5', 'M2 17h7', 'M16.5 2.5L11 12.5h6L13.5 21.5'],
   // Points up (north); rotated to the direction of travel.
   arrow: ['M12 2l7 18-7-4.5L5 20z'],
 };
 
+const STROKE_ICONS = new Set(['gust']); // drawn with a 2 px line instead of a fill
+
 function icon(name, className = 'wx-icon') {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('class', className);
+  svg.setAttribute('class', STROKE_ICONS.has(name) ? `${className} wx-stroke` : className);
   svg.setAttribute('aria-hidden', 'true');
   for (const d of ICON_PATHS[name]) {
     const path = document.createElementNS(SVG_NS, 'path');

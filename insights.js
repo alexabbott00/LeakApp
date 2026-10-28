@@ -457,7 +457,9 @@
 
   function compareCard(model) {
     const card = cardShell('compare', 'Leak hours vs rainy hours',
-      'The typical value (dot) and the middle half of values (bar), for rainy hours with a leak and without one.');
+      'The typical value (dot) and the middle half of values (bar), for rainy hours with a leak and without one. ' +
+      'The data window changes whether the rain readings from before a leak was recorded are included, ' +
+      'because leaks sometimes take a while to come through.');
     const blocked = compareBlocker(model);
     if (blocked) {
       card.append(h('p', { class: 'insight-note', text: blocked }));
@@ -470,7 +472,8 @@
     const sample = h('p', { class: 'sample',
       text: `Based on ${plural(groups.leak.rain.length, 'leak hour')} and ${plural(groups.rainy.rain.length, 'rainy hour')}.` });
 
-    const control = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Rain over' },
+    const windowTitle = h('div', { class: 'control-title', id: 'data-window-title', text: 'Data window' });
+    const control = h('div', { class: 'segmented', role: 'radiogroup', 'aria-labelledby': 'data-window-title' },
       ...RAIN_WINDOWS.map(([n, label]) => h('label', {},
         h('input', { type: 'radio', name: 'rain-window', value: String(n), checked: n === windowHours }), h('span', { text: label }))));
     control.addEventListener('change', (event) => {
@@ -519,7 +522,7 @@
         ? `${kind} hours typically ${stats[kind].median.toFixed(digits)} ${unit}`
         : `no ${kind} hours`).join(', ') + '.');
       blocks.append(h('div', { class: 'compare-block' },
-        field === 'rain' ? control : null,
+        ...(field === 'rain' ? [windowTitle, control] : []),
         h('h3', { text: title }), ...rows,
         h('div', { class: 'range-axis' }, h('span', { text: '0' }), h('span', { text: `${top} ${unit}` }))));
     }

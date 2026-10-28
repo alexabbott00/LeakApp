@@ -215,6 +215,9 @@ p.readout { display: block; margin: 8px 0 4px; }
   color: var(--md-on-surface-variant);
 }
 
+/* Small title above a control */
+.control-title { margin: 12px 0 4px; font-size: 0.875rem; font-weight: 500; color: var(--md-on-surface); }
+
 /* MD3 segmented button: how many hours of rain to add up */
 .segmented { display: flex; margin: 4px 0 8px; border: 1px solid var(--md-outline); border-radius: 24px; overflow: hidden; }
 .segmented label { position: relative; flex: 1; margin: 0; }

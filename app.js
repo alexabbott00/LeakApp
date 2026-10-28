@@ -695,7 +695,9 @@ function weatherSummary(leak) {
 // so the leaks can be rebuilt from the file. Missing values stay empty.
 
 const WEATHER_COLUMNS = [ // heading (with units), stored field
-  ['rain_mm', 'rain'], ['total_precipitation_mm', 'precipitation'], // rain + snow, sleet and hail as water ['snowfall_cm', 'snowfall'],
+  ['rain_mm', 'rain'],
+  ['total_precipitation_mm', 'precipitation'], // rain + snow, sleet and hail as water
+  ['snowfall_cm', 'snowfall'],
   ['hail_mm', 'hail'], ['temperature_c', 'temperature_2m'],
   ['wind_speed_10m_mph', 'wind_speed_10m'], ['wind_direction_10m_deg', 'wind_direction_10m'],
   ['wind_gust_10m_mph', 'wind_gusts_10m'],
@@ -719,7 +721,10 @@ function buildCsv() {
   const leaks = loadLeaks();
   const tracking = trackingStartedAt();
   const trackedFrom = floorHour(Date.parse(tracking)) + HOUR;
-  const start = Math.min(trackedFrom, ...leaks.map((leak) => leakHours(leak)[0]));
+  // Starts early enough to include every leak and every stored weather hour
+  // (e.g. the hours before an early leak), so a backup holds everything.
+  const start = Math.min(trackedFrom, ...leaks.map((leak) => leakHours(leak)[0]),
+    ...[...hours.keys()].map((time) => Date.parse(time)));
   const end = ceilHour(Date.now()); // the current hour, as the weather does
 
   // No two leaks share an hour, so each hour has at most one.
@@ -799,6 +804,174 @@ async function exportCsv() {
   toast(message);
 }
 
+// ---------- Import (CSV) ----------
+//
+// Reads a Stage 4 export back in, on the phone (works offline). An import
+// only ever adds: nothing already on the phone is changed or removed.
+// Leaks already here (same ID), leaks clashing with one here, and damaged
+// leaks are skipped; weather only fills hours the phone doesn't have.
+
+const REQUIRED_COLUMNS = [
+  'hour_utc', 'status', 'leak_id', 'leak_from_utc', 'leak_to_utc',
+  ...HOLE_NUMBERS.flatMap((n) => [`hole${n}_leaked`, `hole${n}_severity`, `hole${n}_volume_ml`]),
+  'leak_notes', 'leak_created_at_utc', 'tracking_started_utc',
+];
+const OLD_COLUMN_NAMES = { precipitation_mm: 'total_precipitation_mm' }; // first export's name
+
+// Rows of cells, handling quoted commas, quotes and line breaks.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; } else if (c !== '\r') cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+const numberOrNull = (text) => (text === '' || text == null ? null : Number(text));
+
+// A leak from its first row, or null if it's damaged (bad times, or no
+// hole with an amount).
+function rebuildLeak(row) {
+  const from = Date.parse(row.leak_from_utc);
+  const to = Date.parse(row.leak_to_utc);
+  if (isNaN(from) || isNaN(to) || to <= from) return null;
+  const holes = {};
+  for (const n of HOLE_NUMBERS) {
+    if (row[`hole${n}_leaked`] !== 'yes') { holes[n] = null; continue; }
+    const volumeMl = numberOrNull(row[`hole${n}_volume_ml`]);
+    const severity = row[`hole${n}_severity`] || null;
+    if (!volumeMl && !severity) return null;
+    holes[n] = volumeMl ? { severity: null, volumeMl } : { severity, volumeMl: null };
+  }
+  if (HOLE_NUMBERS.every((n) => !holes[n])) return null;
+  return {
+    id: row.leak_id,
+    from: new Date(from).toISOString(),
+    to: new Date(to).toISOString(),
+    holes,
+    notes: row.leak_notes,
+    createdAt: row.leak_created_at_utc || new Date().toISOString(),
+  };
+}
+
+// What's in the file, or null if it isn't a Leak Log export.
+function readExport(text) {
+  const [header, ...rows] = parseCsv(text.replace(/^﻿/, ''));
+  if (!header) return null;
+  const names = header.map((name) => OLD_COLUMN_NAMES[name] ?? name);
+  if (!REQUIRED_COLUMNS.every((column) => names.includes(column))) return null;
+
+  const leaks = new Map();
+  const damaged = new Set();
+  const weather = [];
+  let tracking = null;
+  for (const cells of rows) {
+    if (cells.length === 1 && cells[0] === '') continue; // blank line
+    const row = Object.fromEntries(names.map((name, i) => [name, cells[i] ?? '']));
+    tracking ??= row.tracking_started_utc || null;
+
+    if (row.leak_id && !leaks.has(row.leak_id) && !damaged.has(row.leak_id)) {
+      const leak = rebuildLeak(row);
+      if (leak) leaks.set(leak.id, leak); else damaged.add(row.leak_id);
+    }
+
+    const hour = Date.parse(row.hour_utc);
+    if (!isNaN(hour) && row.lat !== '' && row.total_precipitation_mm !== '') {
+      const record = { time: hourKey(hour), lat: Number(row.lat), lon: Number(row.lon) };
+      for (const [heading, field] of WEATHER_COLUMNS) record[field] = numberOrNull(row[heading]);
+      weather.push(record);
+    }
+  }
+  return { leaks: [...leaks.values()], damaged: damaged.size, weather, tracking };
+}
+
+// Works out what would change, without changing anything.
+function planImport(file) {
+  const onPhone = new Set(loadLeaks().map((leak) => leak.id));
+  const add = [];
+  const skipped = { already: 0, clash: 0, damaged: file.damaged };
+  for (const leak of file.leaks) {
+    if (onPhone.has(leak.id)) skipped.already++;
+    else if (findClash(leak.from, leak.to)) skipped.clash++;
+    else add.push(leak);
+  }
+  const newHours = file.weather.filter((record) => !hours.has(record.time));
+  // Tracking start becomes the earlier of the phone's and the file's.
+  const tracking = file.tracking && Date.parse(file.tracking) < Date.parse(trackingStartedAt())
+    ? file.tracking : null;
+  return { add, newHours, tracking, skipped };
+}
+
+const plural = (count, word) => `${count.toLocaleString('en-GB')} ${word}${count === 1 ? '' : 's'}`;
+
+// e.g. "2 skipped: 1 already on this phone, 1 damaged", or '' if none.
+function describeSkipped({ already, clash, damaged }) {
+  const reasons = [
+    already && `${already} already on this phone`,
+    clash && `${clash} clashing with a leak on this phone`,
+    damaged && `${damaged} damaged`,
+  ].filter(Boolean);
+  return reasons.length ? `${already + clash + damaged} skipped: ${reasons.join(', ')}` : '';
+}
+
+// e.g. "1 leak and 24 hours of weather", leaving out any part that's zero.
+function describeAdds(plan, hoursSuffix) {
+  return [
+    plan.add.length && plural(plan.add.length, 'leak'),
+    plan.newHours.length && `${plural(plan.newHours.length, 'hour')}${hoursSuffix}`,
+  ].filter(Boolean).join(' and ');
+}
+
+let pendingImport = null;
+
+async function chooseImportFile() {
+  const file = $('import-file').files[0];
+  $('import-file').value = ''; // so the same file can be picked again
+  if (!file) return;
+  const contents = readExport(await file.text());
+  if (!contents) return toast("This file isn't a Leak Log export");
+
+  const plan = planImport(contents);
+  const skipped = describeSkipped(plan.skipped);
+  if (!plan.add.length && !plan.newHours.length && !plan.tracking) {
+    return toast(`Nothing new to import${skipped ? `. ${skipped}` : ''}`);
+  }
+  pendingImport = plan;
+  const adds = describeAdds(plan, ' of weather');
+  $('import-summary').textContent = [
+    adds && `Adds ${adds}.`,
+    plan.tracking && `Tracking start moves back to ${new Date(plan.tracking).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
+    skipped && `${skipped}.`,
+  ].filter(Boolean).join(' ');
+  $('import-dialog').showModal();
+}
+
+async function applyImport() {
+  const plan = pendingImport;
+  pendingImport = null;
+  $('import-dialog').close();
+  if (!plan) return;
+
+  saveLeaks([...loadLeaks(), ...plan.add]);
+  if (plan.tracking) saveJson(TRACKING_KEY, plan.tracking);
+  await saveHours(plan.newHours).catch(() => {}); // still usable this session if the database fails
+  plan.newHours.forEach((record) => hours.set(record.time, record));
+  render();
+  const skipped = describeSkipped(plan.skipped);
+  const adds = describeAdds(plan, '');
+  toast([adds ? `Imported ${adds}` : 'Tracking start updated', skipped].filter(Boolean).join('. '));
+  updateWeather(); // fills any hours still missing
+}
+
 // ---------- Start up ----------
 
 function init() {
@@ -858,6 +1031,10 @@ function init() {
   window.addEventListener('online', () => updateWeather());
   $('prompt-settings').addEventListener('click', openSettings);
   $('export-csv').addEventListener('click', exportCsv);
+  $('import-csv').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', chooseImportFile);
+  $('cancel-import').addEventListener('click', () => { pendingImport = null; $('import-dialog').close(); });
+  $('confirm-import').addEventListener('click', applyImport);
 
   render();
 

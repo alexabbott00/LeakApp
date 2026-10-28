@@ -21,6 +21,9 @@ south-westerly gusts, that points at one side of the roof.
   from the day the app was first opened.
 - To back up or analyse your data, use **Settings → Export CSV**. It saves
   one row per hour with your leaks and the weather, and works offline.
+- To restore a backup (on a new phone, say), use **Settings → Import CSV**.
+  It only adds: nothing already on the phone is changed or removed. Set
+  your postcode again afterwards, as it isn't stored in exports.
 
 ## Privacy and security
 
@@ -55,7 +58,7 @@ The app is being built in stages. Each stage adds something usable.
       leak covers it, and a weather summary under each leak.
 - [x] **Stage 4: CSV export.** Export leaks and the hourly weather as one
       CSV file from Settings, for backup and analysis.
-- [ ] **Stage 5: CSV import.** Load a CSV export back into the app, to
+- [x] **Stage 5: CSV import.** Load a CSV export back into the app, to
       restore a backup on a new phone or after data is cleared.
 - [ ] **Stage 6: In-app insights.** Charts comparing weather during leaks
       with dry weather.

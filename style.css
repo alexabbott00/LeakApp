@@ -258,6 +258,7 @@ dialog.basic h2 { font-size: 1.5rem; font-weight: 400; margin-bottom: 16px; }
 .settings-body h3 { margin: 8px 0 4px; font-size: 0.875rem; font-weight: 500; color: var(--md-primary); }
 .settings-body .field { margin-bottom: 8px; }
 .settings-body .btn.wide { margin-top: 16px; }
+.settings-section .btn.wide + .supporting { margin-top: 24px; }
 #current-location { margin: 0; }
 .settings-section {
   margin-top: 32px;

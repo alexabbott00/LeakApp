@@ -154,7 +154,7 @@ function render(newId) {
 
     const weather = document.createElement('div');
     weather.className = 'weather';
-    weather.textContent = weatherSummary(leak) ?? 'Weather pending';
+    renderWeather(weather, weatherSummary(leak));
 
     entry.append(when, amount, weather);
 
@@ -668,8 +668,8 @@ function averageBearing(bearings) {
   return ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
 }
 
-// e.g. "4.2 mm rain · Wind 18 mph SW · Gust 35 mph W", over the leak's
-// range plus the 6 hours before it. Null until all those hours are in.
+// Rain, average wind and strongest gust over the leak's range plus the 6
+// hours before it. Null until all those hours are in.
 function weatherSummary(leak) {
   const [first, last] = leakHours(leak);
   const records = [];
@@ -684,8 +684,69 @@ function weatherSummary(leak) {
   // Open-Meteo has no separate gust direction, so use the wind direction in
   // the hour of the strongest gust.
   const gustiest = records.reduce((a, b) => (b.wind_gusts_10m > a.wind_gusts_10m ? b : a));
-  return `${rain.toFixed(1)} mm rain · Wind ${Math.round(wind)} mph ${compassPoint(windFrom)}` +
-         ` · Gust ${Math.round(gustiest.wind_gusts_10m)} mph ${compassPoint(gustiest.wind_direction_10m)}`;
+  return { rain, wind, windFrom, gust: gustiest.wind_gusts_10m, gustFrom: gustiest.wind_direction_10m };
+}
+
+// --- Weather line icons ---
+// Raindrop, wind and gust icons, and an arrow showing the way the wind is
+// blowing to (as on weather maps: a wind from the SW points NE).
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ICON_PATHS = {
+  rain: ['M12 2.7c-.3 0-.6.1-.8.4C9.6 5 6 9.6 6 13.5a6 6 0 0 0 12 0c0-3.9-3.6-8.5-5.2-10.4-.2-.3-.5-.4-.8-.4z'],
+  wind: ['M14.5 17c0 1.65-1.35 3-3 3s-3-1.35-3-3h2c0 .55.45 1 1 1s1-.45 1-1-.45-1-1-1H2v-2h9.5c1.65 0 3 1.35 3 3zM19 6.5C19 4.57 17.43 3 15.5 3S12 4.57 12 6.5h2c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S16.33 8 15.5 8H2v2h13.5c1.93 0 3.5-1.57 3.5-3.5zm-.5 4.5H2v2h16.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5v2c1.93 0 3.5-1.57 3.5-3.5S20.43 11 18.5 11z'],
+  // The wind icon, a little smaller, with an up-chevron for "strongest".
+  gust: ['M10.9 19.2c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5h1.7c0 .5.4.8.8.8s.8-.4.8-.8-.4-.8-.8-.8H1v-1.7h7.4c1.4 0 2.5 1.1 2.5 2.5zM14.3 11.2c1.6 0 2.9 1.3 2.9 2.9s-1.3 2.9-2.9 2.9v-1.7c.7 0 1.2-.5 1.2-1.2s-.5-1.2-1.2-1.2H1v-1.7zM12 8.7c0-1.6-1.3-2.9-2.9-2.9S6.2 7.1 6.2 8.7h1.7c0-.7.5-1.2 1.2-1.2s1.2.5 1.2 1.2-.5 1.2-1.2 1.2H1v1.3h8.1c1.6 0 2.9-1.3 2.9-2.9z',
+         'M19 2l4 4-1.4 1.4L19 4.8l-2.6 2.6L15 6z'],
+  // Points up (north); rotated to the direction of travel.
+  arrow: ['M12 2l7 18-7-4.5L5 20z'],
+};
+
+function icon(name, className = 'wx-icon') {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', className);
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ICON_PATHS[name]) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+// One part of the weather line: an icon, a value, and optionally a
+// direction arrow. Screen readers (and a long press) get the full wording.
+function weatherPart(iconName, value, label, fromDegrees) {
+  const part = document.createElement('span');
+  part.className = 'wx';
+  part.setAttribute('role', 'img');
+  part.setAttribute('aria-label', label);
+  part.title = label;
+  const text = document.createElement('span');
+  text.textContent = value;
+  part.append(icon(iconName), text);
+  if (fromDegrees != null) {
+    const arrow = icon('arrow', 'wx-arrow');
+    arrow.style.transform = `rotate(${(fromDegrees + 180) % 360}deg)`; // blowing to, not from
+    part.append(arrow);
+  }
+  return part;
+}
+
+function renderWeather(el, summary) {
+  if (!summary) {
+    el.textContent = 'Weather pending';
+    return;
+  }
+  const { rain, wind, windFrom, gust, gustFrom } = summary;
+  el.replaceChildren(
+    weatherPart('rain', `${rain.toFixed(1)} mm`, `Rain ${rain.toFixed(1)} mm`),
+    weatherPart('wind', `${Math.round(wind)} mph`,
+      `Average wind ${Math.round(wind)} mph from ${compassPoint(windFrom)}`, windFrom),
+    weatherPart('gust', `${Math.round(gust)} mph`,
+      `Strongest gust ${Math.round(gust)} mph from ${compassPoint(gustFrom)}`, gustFrom),
+  );
 }
 
 // ---------- Export (CSV) ----------

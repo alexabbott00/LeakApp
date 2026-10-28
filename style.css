@@ -162,7 +162,18 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .entry { flex: 1; min-width: 0; }
 .entry .when { font-weight: 500; }
 .entry .amount { color: var(--md-primary); font-size: 0.875rem; font-weight: 500; }
-.entry .weather { color: var(--md-on-surface-variant); font-size: 0.875rem; }
+.entry .weather {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 2px;
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+}
+.wx { display: inline-flex; align-items: center; gap: 4px; }
+.wx-icon { width: 18px; height: 18px; fill: var(--md-primary); flex: none; }
+.wx-arrow { width: 14px; height: 14px; fill: var(--md-on-surface-variant); flex: none; }
 
 /* "Set your location" card */
 .card.prompt {

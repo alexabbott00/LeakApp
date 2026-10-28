@@ -259,6 +259,11 @@ dialog.basic h2 { font-size: 1.5rem; font-weight: 400; margin-bottom: 16px; }
 .settings-body .field { margin-bottom: 8px; }
 .settings-body .btn.wide { margin-top: 16px; }
 #current-location { margin: 0; }
+.settings-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--md-outline-variant);
+}
 
 /* ---------- Form ---------- */
 

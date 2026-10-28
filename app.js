@@ -688,6 +688,117 @@ function weatherSummary(leak) {
          ` · Gust ${Math.round(gustiest.wind_gusts_10m)} mph ${compassPoint(gustiest.wind_direction_10m)}`;
 }
 
+// ---------- Export (CSV) ----------
+//
+// One file, one row per hour, oldest first, built from what's on the phone
+// (works offline). Each leak's details are repeated on every hour it covers,
+// so the leaks can be rebuilt from the file. Missing values stay empty.
+
+const WEATHER_COLUMNS = [ // heading (with units), stored field
+  ['rain_mm', 'rain'], ['precipitation_mm', 'precipitation'], ['snowfall_cm', 'snowfall'],
+  ['hail_mm', 'hail'], ['temperature_c', 'temperature_2m'],
+  ['wind_speed_10m_mph', 'wind_speed_10m'], ['wind_direction_10m_deg', 'wind_direction_10m'],
+  ['wind_gust_10m_mph', 'wind_gusts_10m'],
+  ['wind_speed_20m_mph', 'wind_speed_20m'], ['wind_direction_20m_deg', 'wind_direction_20m'],
+  ['wind_speed_30m_mph', 'wind_speed_30m'], ['wind_direction_30m_deg', 'wind_direction_30m'],
+  ['wind_speed_50m_mph', 'wind_speed_50m'], ['wind_direction_50m_deg', 'wind_direction_50m'],
+];
+
+const utcIso = (ms) => `${new Date(ms).toISOString().slice(0, 16)}Z`; // 2026-10-25T10:00Z
+// UK time with its offset, e.g. 2026-10-25T01:00+01:00, so the repeated hour
+// when the clocks go back is never ambiguous.
+const ukIso = (ms) => `${ukDate(ms)}T${ukHour(ms)}${ukZoneName(ms) === 'BST' ? '+01:00' : '+00:00'}`;
+
+// Quotes a value if it contains a comma, quote or line break.
+function csvCell(value) {
+  const text = value == null ? '' : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function buildCsv() {
+  const leaks = loadLeaks();
+  const tracking = trackingStartedAt();
+  const trackedFrom = floorHour(Date.parse(tracking)) + HOUR;
+  const start = Math.min(trackedFrom, ...leaks.map((leak) => leakHours(leak)[0]));
+  const end = ceilHour(Date.now()); // the current hour, as the weather does
+
+  // No two leaks share an hour, so each hour has at most one.
+  const leakAt = new Map();
+  for (const leak of leaks) {
+    const [first, last] = leakHours(leak);
+    for (let t = first; t <= last; t += HOUR) leakAt.set(t, leak);
+  }
+
+  const header = [
+    'hour_utc', 'hour_local', 'status',
+    'leak_id', 'leak_from_utc', 'leak_to_utc', 'leak_from_local', 'leak_to_local', 'leak_hours',
+    ...HOLE_NUMBERS.flatMap((n) => [`hole${n}_leaked`, `hole${n}_severity`, `hole${n}_volume_ml`]),
+    'leak_notes', 'leak_created_at_utc', 'tracking_started_utc', 'lat', 'lon',
+    ...WEATHER_COLUMNS.map(([heading]) => heading),
+  ];
+  const rows = [header];
+
+  for (let t = start; t <= end; t += HOUR) {
+    const leak = leakAt.get(t);
+    const weather = hours.get(hourKey(t));
+    const status = leak ? 'leak' : t < trackedFrom ? 'unknown' : 'dry';
+    let leakColumns = Array(6 + HOLE_NUMBERS.length * 3 + 2).fill('');
+    if (leak) {
+      const [first, last] = leakHours(leak);
+      const from = Date.parse(leak.from);
+      const to = Date.parse(leak.to);
+      leakColumns = [
+        leak.id, utcIso(from), utcIso(to), ukIso(from), ukIso(to), (last - first) / HOUR + 1,
+        ...HOLE_NUMBERS.flatMap((n) => {
+          const hole = leak.holes?.[n];
+          return [hole ? 'yes' : 'no', hole?.severity ?? '', hole?.volumeMl ?? ''];
+        }),
+        leak.notes, leak.createdAt,
+      ];
+    }
+    rows.push([
+      utcIso(t), ukIso(t), status, ...leakColumns, tracking,
+      weather?.lat, weather?.lon, ...WEATHER_COLUMNS.map(([, field]) => weather?.[field]),
+    ]);
+  }
+
+  // The invisible UTF-8 marker at the start makes Excel show "°" and other
+  // symbols properly; Windows line endings keep it happy too.
+  const csv = `﻿${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
+  return { csv, leakCount: leaks.length, hourCount: rows.length - 1 };
+}
+
+function downloadFile(file) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+// Opens the phone's share menu (Drive, email, Files...), or downloads the
+// file where sharing isn't available. Cancelling the share does nothing.
+async function exportCsv() {
+  const { csv, leakCount, hourCount } = buildCsv();
+  const file = new File([csv], `leak-log-${ukDate(Date.now())}.csv`, { type: 'text/csv' });
+  const message = `Exported ${leakCount} leak${leakCount === 1 ? '' : 's'} over ` +
+    `${hourCount.toLocaleString('en-GB')} hour${hourCount === 1 ? '' : 's'}`;
+
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Leak Log export' });
+      toast(message);
+    } catch (error) {
+      if (error.name === 'AbortError') return; // share menu closed without choosing
+      downloadFile(file);
+      toast(message);
+    }
+    return;
+  }
+  downloadFile(file);
+  toast(message);
+}
+
 // ---------- Start up ----------
 
 function init() {
@@ -746,6 +857,7 @@ function init() {
   window.addEventListener('offline', updateApplyButton);
   window.addEventListener('online', () => updateWeather());
   $('prompt-settings').addEventListener('click', openSettings);
+  $('export-csv').addEventListener('click', exportCsv);
 
   render();
 

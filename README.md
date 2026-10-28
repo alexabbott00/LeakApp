@@ -19,6 +19,8 @@ south-westerly gusts, that points at one side of the roof.
   enter the whole time you were away.
 - You don't log dry spells: any time without a logged leak counts as dry,
   from the day the app was first opened.
+- To back up or analyse your data, use **Settings → Export CSV**. It saves
+  one row per hour with your leaks and the weather, and works offline.
 
 ## Privacy and security
 
@@ -33,6 +35,8 @@ south-westerly gusts, that points at one side of the roof.
 - **Weather lookups.** To fetch the weather, the flat's coordinates are sent
   to Open-Meteo, rounded to about 1 km so the exact address isn't shared.
   The postcode is never sent there.
+- **Exports are personal.** A CSV export contains your leaks and the rounded
+  coordinates the weather was fetched for, so keep it private.
 - `.gitignore` excludes exported CSVs and any `.env` or secrets files, so they
   can't be committed by accident.
 
@@ -49,7 +53,7 @@ The app is being built in stages. Each stage adds something usable.
 - [x] **Stage 3: Attach weather.** An hour-by-hour record of Met Office
       UKV weather (via Open-Meteo) for the flat, each hour dry unless a
       leak covers it, and a weather summary under each leak.
-- [ ] **Stage 4: CSV export.** Export leaks and the hourly weather as one
+- [x] **Stage 4: CSV export.** Export leaks and the hourly weather as one
       CSV file from Settings, for backup and analysis.
 - [ ] **Stage 5: In-app insights.** Charts comparing weather during leaks
       with dry weather, plus CSV import to restore a backup.

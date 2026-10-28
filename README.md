@@ -19,6 +19,8 @@ south-westerly gusts, that points at one side of the roof.
   enter the whole time you were away.
 - Tap a leak in the history to change it, e.g. to add water you found
   later.
+- Open the **Insights** tab to compare the weather during leaks with dry
+  weather. It needs a few leaks logged before it can compare them.
 - You don't log dry spells: any time without a logged leak counts as dry,
   from the day the app was first opened.
 - To back up or analyse your data, use **Settings → Export CSV**. It saves
@@ -64,7 +66,7 @@ The app is being built in stages. Each stage adds something usable.
       restore a backup on a new phone or after data is cleared.
 - [x] **Stage 6: Edit a leak.** Tap a leak in the history to change its
       times, holes or notes.
-- [ ] **Stage 7: In-app insights.** Charts comparing weather during leaks
+- [x] **Stage 7: In-app insights.** Charts comparing weather during leaks
       with dry weather.
 - [ ] **Stage 8: Analysis notebook.** A Python (pandas) notebook that models
       which weather factors predict a leak.

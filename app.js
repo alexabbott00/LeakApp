@@ -189,6 +189,8 @@ function render(newId) {
     li.append(entry, del);
     list.append(li);
   }
+
+  renderInsights(); // keeps the Insights charts up to date (insights.js); does nothing unless they're showing
 }
 
 // ---------- Record leak ----------
@@ -1111,6 +1113,7 @@ async function applyImport() {
 function init() {
   trackingStartedAt();
   convertOldLeaks();
+  initInsights(); // the History / Insights tabs (insights.js)
 
   $('fab').addEventListener('click', () => openRecordDialog());
   $('close-record').addEventListener('click', requestCloseRecord);

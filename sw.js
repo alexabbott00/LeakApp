@@ -1,8 +1,8 @@
 // Service worker: keeps a copy of the app's files so it opens without signal.
 // Network first, so you always get the latest version when online.
 
-const CACHE = 'leak-log-v17';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'leak-log-v18';
+const FILES = ['./', 'index.html', 'style.css', 'insights.css', 'insights.js', 'app.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)));

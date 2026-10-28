@@ -1,0 +1,248 @@
+/* Stage 7: the History / Insights tabs and the charts. Loaded after style.css,
+   and uses its colour, motion and spacing tokens. */
+
+/* ---------- Tabs (History / Insights) ---------- */
+
+.tabs {
+  position: relative;
+  display: flex;
+  margin-top: 8px;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.tab {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px 12px 0 0;
+  background: none;
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color var(--dur-short) var(--ease-standard),
+              background-color var(--dur-short) var(--ease-standard);
+}
+.tab[aria-selected="true"] { color: var(--md-primary); }
+.tab:hover { background: color-mix(in srgb, var(--md-on-surface) 8%, transparent); }
+.tab:focus-visible { outline: 3px solid var(--md-primary); outline-offset: -3px; }
+.tab-indicator {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 50%;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--md-primary);
+  transition: transform var(--dur-medium) var(--ease-standard);
+}
+body[data-tab="insights"] .tab-indicator { transform: translateX(100%); }
+
+/* The + button belongs to History: it fades away on Insights. */
+.fab {
+  transition: opacity var(--dur-medium) var(--ease-standard),
+              transform var(--dur-medium) var(--ease-standard),
+              visibility 0s linear 0s;
+}
+body[data-tab="insights"] .fab {
+  opacity: 0;
+  transform: scale(0.6);
+  visibility: hidden;
+  pointer-events: none;
+  transition-delay: 0s, 0s, var(--dur-medium);
+}
+
+@keyframes fade-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes fade-out { to { opacity: 0; } }
+.fade-in { animation: fade-in var(--dur-medium) var(--ease-enter); }
+.fade-out { animation: fade-out 90ms linear forwards; }
+
+/* ---------- Insights ---------- */
+
+/* Chart colours. Leak is the one orange; dry is blue; weather lines and bars
+   use neutral ink. Checked with the chart-palette validator, light and dark. */
+:root {
+  --viz-leak: #eb6834;
+  --viz-leak-wash: rgba(235, 104, 52, 0.18);
+  --viz-dry: #2a78d6;
+  --viz-dry-wash: rgba(42, 120, 214, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --viz-leak: #d95926;
+    --viz-leak-wash: rgba(217, 89, 38, 0.30);
+    --viz-dry: #3987e5;
+    --viz-dry-wash: rgba(57, 135, 229, 0.24);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.insight-card { background: var(--md-surface); border: 1px solid var(--md-outline-variant); }
+.insight-card .supporting { margin-top: 0; }
+.insight-card .small { font-size: 0.75rem; }
+.insight-note {
+  margin: 8px 0 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--md-surface-container);
+  color: var(--md-on-surface);
+}
+.sample { margin: 0 0 12px; font-size: 0.875rem; font-weight: 500; color: var(--md-on-surface); }
+.select-field { margin: 4px 0 12px; }
+.insight-card .btn { height: 48px; } /* tap targets are at least 48 dp */
+.card-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+/* Legend: a short key beside each label, so identity isn't colour alone. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+  color: var(--md-on-surface-variant);
+}
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { flex: none; width: 12px; height: 12px; border-radius: 3px; box-sizing: border-box; }
+.swatch.leak { background: var(--viz-leak); }
+.swatch.dry { background: var(--viz-dry-wash); border: 2px solid var(--viz-dry); }
+.swatch.key-wind, .swatch.key-gust { width: 16px; height: 3px; border-radius: 2px; }
+.swatch.key-wind { background: var(--md-on-surface); }
+.swatch.key-gust { background: var(--md-outline); }
+.swatch.key-rain { width: 10px; border-radius: 3px 3px 0 0; background: var(--md-on-surface-variant); }
+
+/* Charts 1 and 3: SVG */
+.chart { display: block; max-width: 100%; height: auto; touch-action: pan-y; }
+.rose .chart { margin: 0 auto; touch-action: auto; }
+.chart text { font-family: inherit; font-size: 12px; fill: var(--md-on-surface-variant); }
+.chart .grid { stroke: var(--md-outline-variant); stroke-width: 1; }
+.chart .band { fill: var(--viz-leak-wash); }
+.chart .band-rule { stroke: var(--viz-leak); stroke-width: 2; }
+.chart .band-label, .chart .peak-label, .chart .compass { fill: var(--md-on-surface); font-weight: 500; }
+/* A thin halo in the card colour keeps labels readable where they cross a line or a band. */
+.chart .band-label, .chart .peak-label {
+  paint-order: stroke;
+  stroke: var(--md-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.chart .rain-bar { fill: var(--md-on-surface-variant); }
+.chart .wind-line, .chart .gust-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chart .wind-line { stroke: var(--md-on-surface); }
+.chart .gust-line { stroke: var(--md-outline); }
+.chart .peak-dot { fill: var(--md-outline); stroke: var(--md-surface); stroke-width: 2; }
+.chart .sel-slot { fill: color-mix(in srgb, var(--md-on-surface) 12%, transparent); }
+.chart .sel-dot { stroke: var(--md-surface); stroke-width: 2; }
+.chart .sel-dot.wind { fill: var(--md-on-surface); }
+.chart .sel-dot.gust { fill: var(--md-outline); }
+.chart .wedge.leak { fill: var(--viz-leak); }
+.chart .wedge.dry { fill: var(--viz-dry-wash); stroke: var(--viz-dry); stroke-width: 1.5; }
+.chart .hit { fill: transparent; cursor: pointer; outline: none; }
+.chart .hit:hover { fill: color-mix(in srgb, var(--md-on-surface) 6%, transparent); }
+.chart .hit:focus-visible { stroke: var(--md-primary); stroke-width: 3; }
+
+/* Bars and wedges grow from their base when a chart appears. */
+@keyframes grow-up { from { transform: scaleY(0); } }
+@keyframes grow-right { from { transform: scaleX(0); } }
+@keyframes grow-out { from { transform: scale(0); } }
+.grow-up { transform-box: fill-box; transform-origin: 50% 100%; animation: grow-up var(--dur-long) var(--ease-enter) both; }
+.grow-right { transform-origin: 0 50%; animation: grow-right var(--dur-long) var(--ease-enter) both; }
+.grow-out { animation: grow-out var(--dur-long) var(--ease-enter) both; }
+
+/* Timeline readout and the previous / next hour buttons */
+.stepper { display: flex; align-items: flex-start; gap: 4px; margin-top: 8px; }
+.stepper .icon-btn { flex: none; font-size: 1.75rem; line-height: 1; color: var(--md-on-surface); }
+.stepper .icon-btn:disabled { opacity: 0.38; cursor: default; }
+.readout {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  font-size: 0.875rem;
+  color: var(--md-on-surface);
+}
+p.readout { display: block; margin: 8px 0 4px; }
+.readout strong { font-weight: 600; }
+.readout-values { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.status { display: inline-flex; align-items: center; gap: 6px; color: var(--md-on-surface-variant); }
+
+/* Chart 2: a bar from the lower to the upper quarter, with a dot at the median */
+.compare-block { margin: 12px 0 20px; }
+.compare-block h3 { margin: 12px 0 8px; font-size: 0.875rem; font-weight: 500; color: var(--md-on-surface); }
+.range-row { display: grid; grid-template-columns: 56px 1fr 92px; align-items: center; gap: 8px; min-height: 36px; }
+.range-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; color: var(--md-on-surface); }
+.range-track { position: relative; height: 24px; border-left: 1px solid var(--md-outline); }
+.range-bar { position: absolute; top: 5px; height: 14px; box-sizing: border-box; border-radius: 4px; }
+.range-bar.leak { background: var(--viz-leak); }
+.range-bar.dry { background: var(--viz-dry-wash); border: 2px solid var(--viz-dry); }
+.range-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+.range-dot.leak { background: var(--md-surface); border: 2px solid var(--md-on-surface); }
+.range-dot.dry { background: var(--viz-dry); border: 2px solid var(--md-surface); }
+.range-value { display: flex; flex-direction: column; font-size: 0.875rem; color: var(--md-on-surface); }
+.range-value strong { font-weight: 600; }
+.range-value span { font-size: 0.75rem; color: var(--md-on-surface-variant); }
+.range-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 100px 0 64px;
+  font-size: 0.75rem;
+  color: var(--md-on-surface-variant);
+}
+
+/* MD3 segmented button: how many hours of rain to add up */
+.segmented { display: flex; margin: 4px 0 8px; border: 1px solid var(--md-outline); border-radius: 24px; overflow: hidden; }
+.segmented label { position: relative; flex: 1; margin: 0; }
+.segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; }
+.segmented span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-left: 1px solid var(--md-outline);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--md-on-surface);
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard);
+}
+.segmented label:first-child span { border-left: 0; }
+.segmented input:checked + span { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.segmented input:checked + span::before { content: "✓"; margin-right: 6px; }
+.segmented input:focus-visible + span { outline: 3px solid var(--md-primary); outline-offset: -3px; }
+
+/* "Show table" */
+.table-scroll { max-height: 320px; overflow: auto; border: 1px solid var(--md-outline-variant); border-radius: 8px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--md-on-surface); }
+.data-table th, .data-table td {
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.data-table thead th { position: sticky; top: 0; background: var(--md-surface-container); font-weight: 500; }
+.data-table tbody th { font-weight: 500; }

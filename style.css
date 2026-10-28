@@ -314,7 +314,7 @@ fieldset.section-card.invalid { border-color: var(--md-error); }
 .when-row { display: grid; grid-template-columns: 1fr 8.5rem; gap: 8px; }
 fieldset.section-card #to-field { margin-bottom: 0; }
 /* MD3 exposed dropdown: outlined field with a down arrow. */
-.field .when-row select {
+.field .when-row select, .field.select-field select {
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
                     linear-gradient(135deg, currentColor 50%, transparent 50%);

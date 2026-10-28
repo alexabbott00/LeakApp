@@ -9,8 +9,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="insights.css">
 </head>
-<body>
+<body data-tab="history">
   <header>
     <div class="title-row">
       <h1>Leak Log</h1>
@@ -21,9 +22,20 @@
       </button>
     </div>
     <p id="summary" class="supporting"></p>
+
+    <!-- MD3 primary tabs. Switching never touches the browser history, so
+         the phone's back button behaves as it always has. -->
+    <div class="tabs" id="tablist" role="tablist" aria-label="Leaks and insights">
+      <button type="button" role="tab" id="tab-history" class="tab" data-tab="history"
+              aria-selected="true" aria-controls="panel-history">History</button>
+      <button type="button" role="tab" id="tab-insights" class="tab" data-tab="insights"
+              aria-selected="false" aria-controls="panel-insights" tabindex="-1">Insights</button>
+      <span class="tab-indicator" aria-hidden="true"></span>
+    </div>
   </header>
 
   <main>
+   <div id="panel-history" class="tabpanel" role="tabpanel" aria-labelledby="tab-history">
     <!-- Shown until a location is set, since weather needs one. -->
     <section id="location-prompt" class="card prompt" hidden>
       <p>Set your location to add weather to your leaks.</p>
@@ -57,6 +69,12 @@
         <p>No leaks logged yet.</p>
       </div>
     </section>
+   </div>
+
+   <!-- Insights: the charts are drawn by insights.js. -->
+   <div id="panel-insights" class="tabpanel" role="tabpanel" aria-labelledby="tab-insights" hidden>
+    <div id="insights-content"></div>
+   </div>
   </main>
 
   <button type="button" id="fab" class="fab" aria-label="Record leak">
@@ -223,6 +241,7 @@
 
   <div id="toast" class="snackbar" role="status" aria-live="polite"></div>
 
+  <script src="insights.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

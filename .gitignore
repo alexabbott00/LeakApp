@@ -1,0 +1,22 @@
+# Personal data: leak log exports and any raw data files
+*.csv
+data/
+
+# Secrets: never commit keys or tokens
+.env
+.env.*
+*.key
+secrets*
+
+# Editor / OS clutter
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Python (for the later analysis stage)
+__pycache__/
+.ipynb_checkpoints/
+.venv/

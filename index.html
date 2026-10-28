@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d4ed8">
+  <title>Leak Log</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Leak Log</h1>
+    <p id="summary" class="muted"></p>
+  </header>
+
+  <main>
+    <!-- Log a check: record every time you look at the ceiling, leak or not. -->
+    <section class="card">
+      <h2>Log a check</h2>
+      <p class="muted">Log dry checks too. The analysis needs to compare
+        weather when it leaked with weather when it didn't.</p>
+
+      <form id="check-form">
+        <label>
+          When did you check?
+          <input type="datetime-local" id="check-time" required>
+        </label>
+
+        <fieldset class="choice">
+          <legend>What did you find?</legend>
+          <label class="option leak">
+            <input type="radio" name="outcome" value="leak" required>
+            <span>Leak</span>
+          </label>
+          <label class="option dry">
+            <input type="radio" name="outcome" value="dry">
+            <span>Dry</span>
+          </label>
+        </fieldset>
+
+        <label id="severity-row" hidden>
+          How bad?
+          <select id="severity">
+            <option value="damp">Damp patch</option>
+            <option value="drip">Dripping</option>
+            <option value="heavy">Heavy / pooling</option>
+          </select>
+        </label>
+
+        <label>
+          Notes (optional)
+          <textarea id="notes" rows="2" placeholder="e.g. bucket half full, new stain near window"></textarea>
+        </label>
+
+        <button type="submit" class="primary">Save check</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>History</h2>
+      <ul id="history"></ul>
+      <p id="empty" class="muted">No checks logged yet.</p>
+    </section>
+
+    <section class="card">
+      <h2>Settings</h2>
+
+      <h3>Flat location</h3>
+      <p class="muted">Used to look up the weather for your flat. It's stored
+        only on this phone and is never put in the code or on GitHub.</p>
+      <div class="row">
+        <label>Latitude <input type="number" id="lat" step="0.001" inputmode="decimal"></label>
+        <label>Longitude <input type="number" id="lon" step="0.001" inputmode="decimal"></label>
+      </div>
+      <div class="row">
+        <button type="button" id="use-location">Use my current location</button>
+        <button type="button" id="save-location">Save location</button>
+      </div>
+
+      <h3>Backup</h3>
+      <p class="muted">Your checks live in this phone's browser. Export a CSV
+        now and then (e.g. to Google Drive) so you can't lose them.</p>
+      <button type="button" id="export-csv">Export CSV</button>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

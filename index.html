@@ -57,7 +57,6 @@
           </svg>
         </button>
         <h2 id="record-title">Record leak</h2>
-        <button type="submit" class="btn text">Save</button>
       </div>
 
       <div class="dialog-body">
@@ -96,8 +95,12 @@
           <span>Notes (optional)</span>
           <textarea id="notes" rows="3" placeholder="e.g. bucket half full, new stain near window"></textarea>
         </label>
+      </div>
 
+      <!-- Save sits at the bottom, within thumb reach, and stays visible while scrolling. -->
+      <div class="dialog-footer">
         <p id="form-error" class="error" role="alert" hidden></p>
+        <button type="submit" class="btn filled">Save</button>
       </div>
     </form>
   </dialog>

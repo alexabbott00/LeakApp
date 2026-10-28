@@ -141,6 +141,7 @@ function openRecordDialog() {
   }
   showError('');
   $('record-dialog').showModal();
+  $('record-dialog').scrollTop = 0; // always open at the top, not where it was last left
 }
 
 function showError(message) {

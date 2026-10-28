@@ -18,6 +18,7 @@
   --md-inverse-surface: #2e3036;
   --md-inverse-on-surface: #f0f0f7;
   --sun: #f4b400;
+  --sun-face: #5c4300;
 
   /* MD3 motion: easing curves and durations */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -48,6 +49,7 @@
     --md-inverse-surface: #e2e2e9;
     --md-inverse-on-surface: #2e3036;
     --sun: #fdd663;
+    --sun-face: #3f2e00;
   }
 }
 
@@ -178,6 +180,9 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .empty p { margin: 8px 0 0; }
 .sun-core { fill: var(--sun); }
 .sun-rays { stroke: var(--sun); }
+.sun-face { fill: var(--sun-face); stroke: var(--sun-face); }
+.sun-face circle { stroke: none; }
+.sun-face path { fill: none; }
 
 /* ---------- Dialogs ---------- */
 
@@ -259,6 +264,23 @@ dialog.basic h2 { font-size: 1.5rem; font-weight: 400; margin-bottom: 16px; }
 
 fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
 legend { padding: 0; font-weight: 500; margin-bottom: 4px; }
+
+/* MD3 outlined card for each form section (the time, and each hole).
+   Floating the legend keeps the heading inside the card rather than
+   sitting on its border. */
+fieldset.section-card {
+  border: 1px solid var(--md-outline-variant);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0 0 16px;
+  transition: border-color var(--dur-short) var(--ease-standard);
+}
+fieldset.section-card > legend { float: left; width: 100%; margin-bottom: 8px; }
+fieldset.section-card > legend + * { clear: both; }
+fieldset.section-card .field:last-child,
+fieldset.section-card .row > .field { margin-bottom: 0; }
+fieldset.section-card.invalid { border-color: var(--md-error); }
+#range-hint { margin-top: 8px; }
 
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
 .row > .field { flex: 1 1 200px; }

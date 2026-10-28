@@ -38,6 +38,11 @@
       <div id="empty" class="empty">
         <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
           <circle cx="60" cy="60" r="22" class="sun-core"/>
+          <g class="sun-face">
+            <circle cx="52" cy="55" r="2.8"/>
+            <circle cx="68" cy="55" r="2.8"/>
+            <path d="M50 64q10 9 20 0" fill="none" stroke-width="3" stroke-linecap="round"/>
+          </g>
           <g class="sun-rays" stroke-width="6" stroke-linecap="round">
             <line x1="60" y1="12" x2="60" y2="26"/>
             <line x1="60" y1="94" x2="60" y2="108"/>
@@ -73,7 +78,8 @@
       </div>
 
       <div class="dialog-body">
-        <fieldset>
+        <!-- Each section is an MD3 outlined card: the time, then one per hole. -->
+        <fieldset class="section-card">
           <legend>When did it leak?</legend>
           <p class="supporting">If you found it after being out, pick the
             whole time you were away.</p>
@@ -87,21 +93,38 @@
               <input type="datetime-local" id="leak-to" required>
             </label>
           </div>
+          <small id="range-hint" class="hint" hidden></small>
         </fieldset>
 
-        <fieldset id="amount">
-          <legend>How bad was it?</legend>
+        <!-- A hole with an amount leaked; one left empty didn't. -->
+        <fieldset class="section-card hole" id="hole-1">
+          <legend>Hole 1</legend>
           <div class="chips">
-            <label class="chip"><input type="checkbox" name="severity" value="low"><span>Low</span></label>
-            <label class="chip"><input type="checkbox" name="severity" value="medium"><span>Medium</span></label>
-            <label class="chip"><input type="checkbox" name="severity" value="high"><span>High</span></label>
-            <label class="chip"><input type="checkbox" name="severity" value="mug"><span>Spilled Sports Direct mug</span></label>
+            <label class="chip"><input type="checkbox" name="severity-1" value="low"><span>Low</span></label>
+            <label class="chip"><input type="checkbox" name="severity-1" value="medium"><span>Medium</span></label>
+            <label class="chip"><input type="checkbox" name="severity-1" value="high"><span>High</span></label>
+            <label class="chip"><input type="checkbox" name="severity-1" value="mug"><span>Spilled Sports Direct mug</span></label>
           </div>
           <p class="or">or</p>
           <label class="field">
             <span>Spill volume (ml)</span>
             <!-- Text, not number: a number field lets ".", "-" and "e" through. -->
-            <input type="text" id="volume" inputmode="numeric" autocomplete="off">
+            <input type="text" id="volume-1" inputmode="numeric" autocomplete="off">
+          </label>
+        </fieldset>
+
+        <fieldset class="section-card hole" id="hole-2">
+          <legend>Hole 2</legend>
+          <div class="chips">
+            <label class="chip"><input type="checkbox" name="severity-2" value="low"><span>Low</span></label>
+            <label class="chip"><input type="checkbox" name="severity-2" value="medium"><span>Medium</span></label>
+            <label class="chip"><input type="checkbox" name="severity-2" value="high"><span>High</span></label>
+            <label class="chip"><input type="checkbox" name="severity-2" value="mug"><span>Spilled Sports Direct mug</span></label>
+          </div>
+          <p class="or">or</p>
+          <label class="field">
+            <span>Spill volume (ml)</span>
+            <input type="text" id="volume-2" inputmode="numeric" autocomplete="off">
           </label>
         </fieldset>
 

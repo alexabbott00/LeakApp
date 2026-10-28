@@ -40,23 +40,26 @@ south-westerly gusts, that points at one side of the roof.
 
 The app is being built in stages. Each stage adds something usable.
 
-- [x] **Stage 1: Record leaks.** Leaks with a time range, severity or spill
-      volume, and notes, stored on the phone. Any time without a logged
-      leak counts as dry. Installable and works offline.
+- [x] **Stage 1: Record leaks.** Leaks with a time range, a severity or spill
+      volume for each of the two ceiling holes, and notes, stored on the
+      phone. Any time without a logged leak counts as dry. Installable and
+      works offline.
 - [x] **Stage 2: Set location.** A Settings page to set the flat's
       location by UK postcode, looked up once and stored on the phone.
 - [x] **Stage 3: Attach weather.** An hour-by-hour record of Met Office
       UKV weather (via Open-Meteo) for the flat, each hour dry unless a
       leak covers it, and a weather summary under each leak.
-- [ ] **Stage 4: In-app insights.** Charts comparing weather during leaks
+- [ ] **Stage 4: CSV export.** Export leaks and the hourly weather as one
+      CSV file from Settings, for backup and analysis.
+- [ ] **Stage 5: In-app insights.** Charts comparing weather during leaks
       with dry weather, plus CSV import to restore a backup.
-- [ ] **Stage 5: Analysis notebook.** A Python (pandas) notebook that models
+- [ ] **Stage 6: Analysis notebook.** A Python (pandas) notebook that models
       which weather factors predict a leak.
-- [ ] **Stage 6: Met Office station observations.** A scheduled GitHub
+- [ ] **Stage 7: Met Office station observations.** A scheduled GitHub
       Action collects hourly Met Office DataHub land observations. The API
       key is kept in GitHub Secrets and is never in the code.
-- [ ] **Stage 7: Quality.** Automated tests and CI.
-- [ ] **Stage 8: Record absences.** Mark periods away from home, so the
+- [ ] **Stage 8: Quality.** Automated tests and CI.
+- [ ] **Stage 9: Record absences.** Mark periods away from home, so the
       analysis doesn't count them as dry.
 
 ## Tech

@@ -76,8 +76,28 @@ const SEVERITY_LABELS = {
   mug: 'Spilled Sports Direct mug',
 };
 
-const describeAmount = (leak) =>
-  leak.volumeMl != null ? `${leak.volumeMl} ml` : SEVERITY_LABELS[leak.severity] ?? leak.severity;
+const HOLE_NUMBERS = [1, 2];
+
+const describeHole = (hole) =>
+  hole.volumeMl != null ? `${hole.volumeMl} ml` : SEVERITY_LABELS[hole.severity] ?? hole.severity;
+
+// e.g. "Hole 1: 350 ml · Hole 2: Low", listing only the holes that leaked.
+const describeAmount = (leak) => HOLE_NUMBERS
+  .filter((n) => leak.holes?.[n])
+  .map((n) => `Hole ${n}: ${describeHole(leak.holes[n])}`)
+  .join(' · ');
+
+// Leaks saved before there were two holes had one severity/volume: that
+// becomes hole 1, and hole 2 is empty.
+function convertOldLeaks() {
+  const leaks = loadLeaks();
+  if (leaks.every((leak) => leak.holes)) return;
+  saveLeaks(leaks.map((leak) => {
+    if (leak.holes) return leak;
+    const { severity, volumeMl, ...rest } = leak;
+    return { ...rest, holes: { 1: { severity: volumeMl != null ? null : severity, volumeMl: volumeMl ?? null }, 2: null } };
+  }));
+}
 
 function toast(message) {
   const el = $('toast');
@@ -149,21 +169,30 @@ function render(newId) {
 // Bad values are blocked as they're entered, rather than reported on save.
 // Only a required field left empty is flagged, by turning it red.
 
-const severityChips = () => document.querySelectorAll('input[name="severity"]');
+const severityChips = (n) => document.querySelectorAll(`input[name="severity-${n}"]`);
 
 function setInvalid(id, invalid) {
   $(id).classList.toggle('invalid', invalid);
 }
 
+// Overlap is shown as red From/To with a hint naming the leak it clashes with.
+function showRangeError(clash) {
+  setInvalid('from-field', !!clash);
+  setInvalid('to-field', !!clash);
+  $('range-hint').textContent = clash ? `Overlaps ${formatRange(clash.from, clash.to)}` : '';
+  $('range-hint').hidden = !clash;
+}
+
 function openRecordDialog() {
   const now = toLocalInputValue(new Date());
   $('leak-form').reset();
-  cleanVolume.last = '';
+  for (const n of HOLE_NUMBERS) $(`volume-${n}`).dataset.last = '';
   for (const input of [$('leak-from'), $('leak-to')]) {
     input.value = now;
     input.max = now; // the phone's picker won't offer future times
   }
-  ['from-field', 'to-field', 'amount'].forEach((id) => setInvalid(id, false));
+  showRangeError(null);
+  HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, false));
   $('record-dialog').showModal();
   $('record-dialog').scrollTop = 0; // always open at the top, not where it was last left
 }
@@ -176,18 +205,37 @@ function keepInPast(input) {
 }
 
 // Digits only, no leading zeros, and never above the maximum.
-function cleanVolume() {
-  const input = $('volume');
+function cleanVolume(n) {
+  const input = $(`volume-${n}`);
   let digits = input.value.replace(/\D/g, '').replace(/^0+/, '');
-  if (Number(digits) > MAX_VOLUME_ML) digits = cleanVolume.last ?? '';
+  if (Number(digits) > MAX_VOLUME_ML) digits = input.dataset.last ?? '';
   input.value = digits;
-  cleanVolume.last = digits;
+  input.dataset.last = digits;
 
-  // Severity and volume can't both be entered: typing a volume clears the severity.
+  // Severity and volume can't both be entered for a hole: typing a volume
+  // clears that hole's severity.
   if (digits) {
-    severityChips().forEach((r) => { r.checked = false; });
-    setInvalid('amount', false);
+    severityChips(n).forEach((chip) => { chip.checked = false; });
+    HOLE_NUMBERS.forEach((h) => setInvalid(`hole-${h}`, false));
   }
+}
+
+// A hole's amount, or null if it was left empty (didn't leak).
+function readHole(n) {
+  const severity = document.querySelector(`input[name="severity-${n}"]:checked`)?.value ?? null;
+  const volume = $(`volume-${n}`).value ? Number($(`volume-${n}`).value) : null;
+  if (volume) return { severity: null, volumeMl: volume };
+  return severity ? { severity, volumeMl: null } : null;
+}
+
+// An existing leak sharing any hour with the range, if there is one. There's
+// one leak point, so overlapping entries would really be the same leak.
+function findClash(fromIso, toIso) {
+  const [first, last] = leakHours({ from: fromIso, to: toIso });
+  return loadLeaks().find((leak) => {
+    const [otherFirst, otherLast] = leakHours(leak);
+    return first <= otherLast && otherFirst <= last;
+  });
 }
 
 function addLeak(event) {
@@ -197,27 +245,30 @@ function addLeak(event) {
   keepInPast($('leak-to'));
   let from = new Date($('leak-from').value);
   let to = new Date($('leak-to').value);
-  const severity = document.querySelector('input[name="severity"]:checked')?.value ?? null;
-  const volume = $('volume').value ? Number($('volume').value) : null;
+  const holes = Object.fromEntries(HOLE_NUMBERS.map((n) => [n, readHole(n)]));
+  const noHole = HOLE_NUMBERS.every((n) => !holes[n]);
 
+  showRangeError(null);
   setInvalid('from-field', isNaN(from));
   setInvalid('to-field', isNaN(to));
-  setInvalid('amount', !severity && !volume);
+  HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, noHole));
+
+  // "To" before "From" is almost certainly a slip, so swap them.
+  if (!isNaN(from) && !isNaN(to) && to < from) [from, to] = [to, from];
+  const clash = !isNaN(from) && !isNaN(to) && findClash(from.toISOString(), to.toISOString());
+  if (clash) showRangeError(clash);
+
   const firstInvalid = document.querySelector('#leak-form .invalid');
   if (firstInvalid) {
     firstInvalid.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
     return;
   }
 
-  // "To" before "From" is almost certainly a slip, so swap them.
-  if (to < from) [from, to] = [to, from];
-
   const leak = {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     from: from.toISOString(), // stored in UTC so it lines up with weather data later
     to: to.toISOString(),
-    severity: volume ? null : severity,
-    volumeMl: volume,
+    holes,
     notes: $('notes').value.trim(),
     createdAt: new Date().toISOString(),
   };
@@ -570,6 +621,7 @@ function weatherSummary(leak) {
 
 function init() {
   trackingStartedAt();
+  convertOldLeaks();
 
   $('fab').addEventListener('click', openRecordDialog);
   $('close-record').addEventListener('click', () => $('record-dialog').close());
@@ -578,21 +630,25 @@ function init() {
   for (const [inputId, fieldId] of [['leak-from', 'from-field'], ['leak-to', 'to-field']]) {
     $(inputId).addEventListener('change', () => {
       keepInPast($(inputId));
+      showRangeError(null); // a changed time clears any overlap warning
       setInvalid(fieldId, !$(inputId).value);
     });
   }
 
-  $('volume').addEventListener('input', cleanVolume);
-  // Severity chips are checkboxes so a selected one can be tapped off again,
-  // but only one can be on at a time.
-  severityChips().forEach((chip) =>
-    chip.addEventListener('change', () => {
-      if (!chip.checked) return;
-      severityChips().forEach((other) => { if (other !== chip) other.checked = false; });
-      $('volume').value = '';
-      cleanVolume.last = '';
-      setInvalid('amount', false);
-    }));
+  for (const n of HOLE_NUMBERS) {
+    $(`volume-${n}`).addEventListener('input', () => cleanVolume(n));
+    // Severity chips are checkboxes so a selected one can be tapped off again,
+    // but only one per hole can be on at a time. Choosing one clears that
+    // hole's volume; the other hole isn't touched.
+    severityChips(n).forEach((chip) =>
+      chip.addEventListener('change', () => {
+        if (!chip.checked) return;
+        severityChips(n).forEach((other) => { if (other !== chip) other.checked = false; });
+        $(`volume-${n}`).value = '';
+        $(`volume-${n}`).dataset.last = '';
+        HOLE_NUMBERS.forEach((h) => setInvalid(`hole-${h}`, false));
+      }));
+  }
 
   $('cancel-delete').addEventListener('click', () => $('delete-dialog').close());
   $('confirm-delete').addEventListener('click', confirmDelete);

@@ -695,7 +695,7 @@ function weatherSummary(leak) {
 // so the leaks can be rebuilt from the file. Missing values stay empty.
 
 const WEATHER_COLUMNS = [ // heading (with units), stored field
-  ['rain_mm', 'rain'], ['precipitation_mm', 'precipitation'], ['snowfall_cm', 'snowfall'],
+  ['rain_mm', 'rain'], ['total_precipitation_mm', 'precipitation'], // rain + snow, sleet and hail as water ['snowfall_cm', 'snowfall'],
   ['hail_mm', 'hail'], ['temperature_c', 'temperature_2m'],
   ['wind_speed_10m_mph', 'wind_speed_10m'], ['wind_direction_10m_deg', 'wind_direction_10m'],
   ['wind_gust_10m_mph', 'wind_gusts_10m'],

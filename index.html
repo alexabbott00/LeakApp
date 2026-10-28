@@ -191,6 +191,16 @@
     </div>
   </section>
 
+  <!-- Closing the leak form with unsaved changes: MD3 basic dialog. -->
+  <dialog id="discard-dialog" class="basic" aria-labelledby="discard-title">
+    <h2 id="discard-title">Discard changes?</h2>
+    <p class="supporting">What you've entered won't be saved.</p>
+    <div class="actions">
+      <button type="button" id="keep-editing" class="btn text">Keep editing</button>
+      <button type="button" id="discard-changes" class="btn text danger">Discard</button>
+    </div>
+  </dialog>
+
   <!-- Import confirmation: MD3 basic dialog, like the delete one. -->
   <dialog id="import-dialog" class="basic" aria-labelledby="import-title">
     <h2 id="import-title">Import backup?</h2>

@@ -169,7 +169,22 @@ function render(newId) {
     del.type = 'button';
     del.className = 'btn text';
     del.textContent = 'Delete';
-    del.addEventListener('click', () => askToDelete(leak.id));
+    del.addEventListener('click', (event) => {
+      event.stopPropagation(); // Delete only deletes; it doesn't open the leak
+      askToDelete(leak.id);
+    });
+
+    // Tapping the row (anywhere but Delete) opens it for editing.
+    li.tabIndex = 0;
+    li.setAttribute('role', 'button');
+    li.setAttribute('aria-label', `Edit leak, ${formatRange(leak.from, leak.to)}`);
+    li.addEventListener('click', () => openRecordDialog(leak));
+    li.addEventListener('keydown', (event) => {
+      if (event.target === li && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        openRecordDialog(leak);
+      }
+    });
 
     li.append(entry, del);
     list.append(li);
@@ -267,14 +282,52 @@ function setWhen(fromMs, toMs) {
   fillToHours(toMs);
 }
 
-function openRecordDialog() {
+// The same form records a new leak or edits one. editingId is the leak
+// being edited, or null when recording.
+let editingId = null;
+let formSnapshot = '';
+
+// Every field's value, to tell whether anything has changed since opening.
+const formState = () => JSON.stringify([
+  ...['from-date', 'from-hour', 'to-date', 'to-hour', 'notes'].map((id) => $(id).value),
+  ...HOLE_NUMBERS.map((n) => [readHole(n), $(`volume-${n}`).value]),
+]);
+const formChanged = () => formState() !== formSnapshot;
+
+function openRecordDialog(leak = null) {
+  editingId = leak?.id ?? null;
+  $('record-title').textContent = leak ? 'Edit leak' : 'Record leak';
   $('leak-form').reset();
   for (const n of HOLE_NUMBERS) $(`volume-${n}`).dataset.last = '';
-  setWhen(latestFrom(), latestTo());
+
+  if (leak) {
+    setWhen(Date.parse(leak.from), Date.parse(leak.to));
+    for (const n of HOLE_NUMBERS) {
+      const hole = leak.holes?.[n];
+      if (hole?.volumeMl != null) {
+        $(`volume-${n}`).value = String(hole.volumeMl);
+        $(`volume-${n}`).dataset.last = String(hole.volumeMl);
+      } else if (hole?.severity) {
+        severityChips(n).forEach((chip) => { chip.checked = chip.value === hole.severity; });
+      }
+    }
+    $('notes').value = leak.notes ?? '';
+  } else {
+    setWhen(latestFrom(), latestTo());
+  }
+
   showRangeError(null);
-  HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, false));
+  ['from-field', 'to-field', ...HOLE_NUMBERS.map((n) => `hole-${n}`)].forEach((id) => setInvalid(id, false));
+  formSnapshot = formState();
   $('record-dialog').showModal();
   $('record-dialog').scrollTop = 0; // always open at the top, not where it was last left
+}
+
+// Closing (X, back button or back-swipe) after changing anything asks first,
+// so an accidental back-swipe doesn't lose what was typed.
+function requestCloseRecord() {
+  if (formChanged()) $('discard-dialog').showModal();
+  else $('record-dialog').close();
 }
 
 // Digits only, no leading zeros, and never above the maximum.
@@ -303,9 +356,11 @@ function readHole(n) {
 
 // An existing leak sharing any hour with the range, if there is one. There's
 // one leak point, so overlapping entries would really be the same leak.
-function findClash(fromIso, toIso) {
+// ignoreId is the leak being edited, so its own hours don't count.
+function findClash(fromIso, toIso, ignoreId = null) {
   const [first, last] = leakHours({ from: fromIso, to: toIso });
   return loadLeaks().find((leak) => {
+    if (leak.id === ignoreId) return false;
     const [otherFirst, otherLast] = leakHours(leak);
     return first <= otherLast && otherFirst <= last;
   });
@@ -326,7 +381,7 @@ function addLeak(event) {
   setInvalid('to-field', isNaN(to));
   HOLE_NUMBERS.forEach((n) => setInvalid(`hole-${n}`, noHole));
 
-  const clash = !isNaN(from) && !isNaN(to) && findClash(from.toISOString(), to.toISOString());
+  const clash = !isNaN(from) && !isNaN(to) && findClash(from.toISOString(), to.toISOString(), editingId);
   if (clash) showRangeError(clash);
 
   const firstInvalid = document.querySelector('#leak-form .invalid');
@@ -335,19 +390,34 @@ function addLeak(event) {
     return;
   }
 
-  const leak = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+  const values = {
     from: from.toISOString(), // stored in UTC so it lines up with weather data later
     to: to.toISOString(),
     holes,
     notes: $('notes').value.trim(),
-    createdAt: new Date().toISOString(),
   };
+  const leaks = loadLeaks();
+  const editing = leaks.find((leak) => leak.id === editingId);
 
-  saveLeaks([...loadLeaks(), leak]);
-  $('record-dialog').close();
-  render(leak.id);
-  toast('Leak logged');
+  if (editing) {
+    // Keeps its ID and when it was first saved; records when it was edited.
+    saveLeaks(leaks.map((leak) => (leak === editing
+      ? { id: leak.id, ...values, createdAt: leak.createdAt, updatedAt: new Date().toISOString() }
+      : leak)));
+    $('record-dialog').close();
+    render();
+    toast('Leak updated');
+  } else {
+    const leak = {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      ...values,
+      createdAt: new Date().toISOString(),
+    };
+    saveLeaks([...leaks, leak]);
+    $('record-dialog').close();
+    render(leak.id);
+    toast('Leak logged');
+  }
   updateWeather(); // fetches any hours this leak needs that aren't in yet
 }
 
@@ -799,7 +869,7 @@ function buildCsv() {
     'hour_utc', 'hour_local', 'status',
     'leak_id', 'leak_from_utc', 'leak_to_utc', 'leak_from_local', 'leak_to_local', 'leak_hours',
     ...HOLE_NUMBERS.flatMap((n) => [`hole${n}_leaked`, `hole${n}_severity`, `hole${n}_volume_ml`]),
-    'leak_notes', 'leak_created_at_utc', 'tracking_started_utc', 'lat', 'lon',
+    'leak_notes', 'leak_created_at_utc', 'leak_updated_at_utc', 'tracking_started_utc', 'lat', 'lon',
     ...WEATHER_COLUMNS.map(([heading]) => heading),
   ];
   const rows = [header];
@@ -808,7 +878,7 @@ function buildCsv() {
     const leak = leakAt.get(t);
     const weather = hours.get(hourKey(t));
     const status = leak ? 'leak' : t < trackedFrom ? 'unknown' : 'dry';
-    let leakColumns = Array(6 + HOLE_NUMBERS.length * 3 + 2).fill('');
+    let leakColumns = Array(6 + HOLE_NUMBERS.length * 3 + 3).fill('');
     if (leak) {
       const [first, last] = leakHours(leak);
       const from = Date.parse(leak.from);
@@ -819,7 +889,7 @@ function buildCsv() {
           const hole = leak.holes?.[n];
           return [hole ? 'yes' : 'no', hole?.severity ?? '', hole?.volumeMl ?? ''];
         }),
-        leak.notes, leak.createdAt,
+        leak.notes, leak.createdAt, leak.updatedAt, // updatedAt is empty if never edited
       ];
     }
     rows.push([
@@ -914,7 +984,7 @@ function rebuildLeak(row) {
     holes[n] = volumeMl ? { severity: null, volumeMl } : { severity, volumeMl: null };
   }
   if (HOLE_NUMBERS.every((n) => !holes[n])) return null;
-  return {
+  const leak = {
     id: row.leak_id,
     from: new Date(from).toISOString(),
     to: new Date(to).toISOString(),
@@ -922,6 +992,9 @@ function rebuildLeak(row) {
     notes: row.leak_notes,
     createdAt: row.leak_created_at_utc || new Date().toISOString(),
   };
+  // Only edited leaks have an edit time; older exports don't have the column.
+  if (row.leak_updated_at_utc) leak.updatedAt = row.leak_updated_at_utc;
+  return leak;
 }
 
 // What's in the file, or null if it isn't a Leak Log export.
@@ -1039,8 +1112,30 @@ function init() {
   trackingStartedAt();
   convertOldLeaks();
 
-  $('fab').addEventListener('click', openRecordDialog);
-  $('close-record').addEventListener('click', () => $('record-dialog').close());
+  $('fab').addEventListener('click', () => openRecordDialog());
+  $('close-record').addEventListener('click', requestCloseRecord);
+  // The phone's back button / back-swipe (and Escape) ask to close the
+  // dialog; hold it if anything has changed, and ask first.
+  // Chrome only lets a page hold the back button if it's been tapped since
+  // the last time, so a quick second back can't be held: then the form
+  // closes, and a message says the changes weren't saved.
+  $('record-dialog').addEventListener('cancel', (event) => {
+    if (!formChanged()) return;
+    if (!event.cancelable) {
+      toast('Changes not saved');
+      return;
+    }
+    event.preventDefault();
+    $('discard-dialog').showModal();
+  });
+  $('record-dialog').addEventListener('close', () => {
+    if ($('discard-dialog').open) $('discard-dialog').close();
+  });
+  $('keep-editing').addEventListener('click', () => $('discard-dialog').close());
+  $('discard-changes').addEventListener('click', () => {
+    $('discard-dialog').close();
+    $('record-dialog').close();
+  });
   $('leak-form').addEventListener('submit', addLeak);
 
   // Any change to the times clears the overlap warning and re-checks which

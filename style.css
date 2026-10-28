@@ -159,6 +159,17 @@ input, select, textarea, button { font: inherit; color: inherit; }
   border-top: 1px solid var(--md-outline-variant);
 }
 #history li:first-child { border-top: 0; }
+/* Rows open for editing: MD3 state layer on hover, press and focus. */
+#history li[role="button"] {
+  margin: 0 -8px;
+  padding: 12px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard);
+}
+#history li[role="button"]:hover { background: color-mix(in srgb, var(--md-on-surface) 8%, transparent); }
+#history li[role="button"]:active { background: color-mix(in srgb, var(--md-on-surface) 12%, transparent); }
+#history li[role="button"]:focus-visible { outline: 3px solid var(--md-primary); outline-offset: -3px; }
 .entry { flex: 1; min-width: 0; }
 .entry .when { font-weight: 500; }
 .entry .amount { color: var(--md-primary); font-size: 0.875rem; font-weight: 500; }

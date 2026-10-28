@@ -17,6 +17,8 @@ south-westerly gusts, that points at one side of the roof.
 - Set your postcode once in **Settings** (the cog, top right).
 - Tap **+** whenever you find a leak. If you were out when it happened,
   enter the whole time you were away.
+- Tap a leak in the history to change it, e.g. to add water you found
+  later.
 - You don't log dry spells: any time without a logged leak counts as dry,
   from the day the app was first opened.
 - To back up or analyse your data, use **Settings → Export CSV**. It saves
@@ -60,7 +62,7 @@ The app is being built in stages. Each stage adds something usable.
       CSV file from Settings, for backup and analysis.
 - [x] **Stage 5: CSV import.** Load a CSV export back into the app, to
       restore a backup on a new phone or after data is cleared.
-- [ ] **Stage 6: Edit a leak.** Tap a leak in the history to change its
+- [x] **Stage 6: Edit a leak.** Tap a leak in the history to change its
       times, holes or notes.
 - [ ] **Stage 7: In-app insights.** Charts comparing weather during leaks
       with dry weather.

@@ -50,7 +50,9 @@ The app is being built in stages. Each stage adds something usable.
 - [ ] **Stage 6 Quality.** Automated tests and CI.
 - [ ] **Stage 7: Record absences.** Mark periods away from home, so the
       analysis doesn't count them as dry.
-- [ ] CSV export
+
+
+
 
 ## Tech
 

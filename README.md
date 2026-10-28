@@ -30,6 +30,9 @@ south-westerly gusts, that points at one side of the roof.
 - **Postcode lookup.** When you set the location, the postcode is sent once
   to [postcodes.io](https://postcodes.io/) to find its map position. It
   isn't sent anywhere else.
+- **Weather lookups.** To fetch the weather, the flat's coordinates are sent
+  to Open-Meteo, rounded to about 1 km so the exact address isn't shared.
+  The postcode is never sent there.
 - `.gitignore` excludes exported CSVs and any `.env` or secrets files, so they
   can't be committed by accident.
 
@@ -42,9 +45,9 @@ The app is being built in stages. Each stage adds something usable.
       leak counts as dry. Installable and works offline.
 - [x] **Stage 2: Set location.** A Settings page to set the flat's
       location by UK postcode, looked up once and stored on the phone.
-- [ ] **Stage 3: Attach weather.** Fetch Met Office UKV hourly weather
-      (via Open-Meteo) for the hours before each leak: rain totals, mean
-      wind, max gust and wind direction.
+- [x] **Stage 3: Attach weather.** An hour-by-hour record of Met Office
+      UKV weather (via Open-Meteo) for the flat, each hour dry unless a
+      leak covers it, and a weather summary under each leak.
 - [ ] **Stage 4: In-app insights.** Charts comparing weather during leaks
       with dry weather, plus CSV import to restore a backup.
 - [ ] **Stage 5: Analysis notebook.** A Python (pandas) notebook that models

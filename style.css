@@ -104,6 +104,7 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .btn.text.danger { color: var(--md-error); }
 .btn.filled { background: var(--md-primary); color: var(--md-on-primary); }
 .btn.wide { display: block; width: 100%; }
+.btn.tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .btn:disabled {
   background: color-mix(in srgb, var(--md-on-surface) 12%, transparent);
   color: color-mix(in srgb, var(--md-on-surface) 38%, transparent);
@@ -159,6 +160,18 @@ input, select, textarea, button { font: inherit; color: inherit; }
 .entry { flex: 1; min-width: 0; }
 .entry .when { font-weight: 500; }
 .entry .amount { color: var(--md-primary); font-size: 0.875rem; font-weight: 500; }
+.entry .weather { color: var(--md-on-surface-variant); font-size: 0.875rem; }
+
+/* "Set your location" card */
+.card.prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+.card.prompt p { flex: 1; margin: 0; }
+
 .entry .notes { color: var(--md-on-surface-variant); font-size: 0.875rem; overflow-wrap: anywhere; }
 
 .empty { text-align: center; padding: 16px 0 8px; color: var(--md-on-surface-variant); }

@@ -1,11 +1,13 @@
 // Leak Log - stage 1: record leaks on the phone. Stage 2: set the flat's
-// location by postcode, for the weather lookups to come.
+// location by postcode. Stage 3: keep an hourly weather record for the flat.
 //
 // Only leaks are logged. Any time after tracking started that isn't inside
 // a logged leak counts as dry.
 //
-// All data is kept in the browser's localStorage on this device. The only
-// thing sent anywhere is the postcode, to postcodes.io, when it's applied.
+// All data is kept on this device: leaks and settings in localStorage, the
+// hourly weather in IndexedDB. The only things sent anywhere are the
+// postcode, to postcodes.io when it's applied, and rounded coordinates, to
+// Open-Meteo for the weather.
 
 const LEAKS_KEY = 'leakLog.leaks.v1';
 const TRACKING_KEY = 'leakLog.trackingStartedAt';
@@ -97,6 +99,7 @@ function render(newId) {
   $('summary').textContent =
     `${leaks.length} leak${leaks.length === 1 ? '' : 's'} logged · Tracking since ${since}`;
   $('empty').hidden = leaks.length > 0;
+  $('location-prompt').hidden = !!loadLocation();
 
   const list = $('history');
   list.replaceChildren();
@@ -117,7 +120,11 @@ function render(newId) {
     amount.className = 'amount';
     amount.textContent = describeAmount(leak);
 
-    entry.append(when, amount);
+    const weather = document.createElement('div');
+    weather.className = 'weather';
+    weather.textContent = weatherSummary(leak) ?? 'Weather pending';
+
+    entry.append(when, amount, weather);
 
     if (leak.notes) {
       const notes = document.createElement('div');
@@ -219,6 +226,7 @@ function addLeak(event) {
   $('record-dialog').close();
   render(leak.id);
   toast('Leak logged');
+  updateWeather(); // fetches any hours this leak needs that aren't in yet
 }
 
 // ---------- Delete ----------
@@ -336,6 +344,9 @@ async function applyLocation(event) {
     $('postcode').value = location.postcode;
     renderLocation();
     toast(`Location set: ${describeLocation(location)}`);
+    render();
+    // Weather already fetched keeps its old location; new hours use this one.
+    updateWeather(true);
   } catch {
     showPostcodeError(true, "Couldn't reach the postcode lookup. Try again.");
   } finally {
@@ -365,6 +376,194 @@ function closeSettings() {
   for (const el of document.querySelectorAll('header, main, #fab')) el.inert = false;
   view.classList.remove('entering');
   animate(view, 'leaving', () => { view.hidden = true; });
+}
+
+// ---------- Weather ----------
+//
+// One record per hour, keyed by the hour it ends: the 10:00 record covers
+// 09:00-10:00 (Open-Meteo's totals and gusts are "preceding hour"). A web
+// app can't run in the background, so each time the app opens it fetches
+// every hour it's missing, plus the latest 3 hours, which the model may
+// still revise. The current hour is included as a provisional value.
+
+const HOUR = 3600 * 1000;
+const WEATHER_URL = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
+const WEATHER_MODEL = 'ukmo_uk_deterministic_2km';
+const WEATHER_FIELDS = [
+  'rain', 'precipitation', 'snowfall', 'hail', 'temperature_2m',
+  'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
+  'wind_speed_20m', 'wind_direction_20m', 'wind_speed_30m', 'wind_direction_30m',
+  'wind_speed_50m', 'wind_direction_50m',
+];
+const UKV_START = Date.UTC(2022, 2, 1); // no UKV data before 1 March 2022
+const REFRESH_HOURS = 3;
+const SUMMARY_LEAD_HOURS = 6; // the summary also shows the hours before a leak
+const MAX_DAYS_PER_REQUEST = 90;
+const WEATHER_CHECKED_KEY = 'leakLog.weatherCheckedAt';
+
+const hours = new Map(); // hour (ISO string) -> weather record, mirrors IndexedDB
+
+const hourKey = (ms) => new Date(ms).toISOString();
+const floorHour = (ms) => Math.floor(ms / HOUR) * HOUR;
+const ceilHour = (ms) => Math.ceil(ms / HOUR) * HOUR;
+
+// The first and last hourly records a leak's range touches.
+// 09:00-17:00 -> the 10:00 to 17:00 records (8 hours).
+function leakHours(leak) {
+  const first = floorHour(Date.parse(leak.from)) + HOUR;
+  return [first, Math.max(first, ceilHour(Date.parse(leak.to)))];
+}
+
+// "leak" if any logged leak covers the hour, otherwise "dry". Worked out
+// each time, never stored, so deleting a leak turns its hours back to dry.
+function hourStatus(hourMs) {
+  return loadLeaks().some((leak) => {
+    const [first, last] = leakHours(leak);
+    return hourMs >= first && hourMs <= last;
+  }) ? 'leak' : 'dry';
+}
+
+// --- Database: a single "hours" table in IndexedDB ---
+
+function openDb() {
+  openDb.promise ??= new Promise((resolve, reject) => {
+    const request = indexedDB.open('leakLog', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('hours', { keyPath: 'time' });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return openDb.promise;
+}
+
+async function loadHours() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction('hours').objectStore('hours').getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveHours(records) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('hours', 'readwrite');
+    records.forEach((record) => tx.objectStore('hours').put(record));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// --- Fetching ---
+
+// Earliest hour needed: tracking start, or 6 hours before the earliest leak
+// if that's sooner (so every leak's summary can be filled in).
+function earliestNeededHour() {
+  let start = floorHour(Date.parse(trackingStartedAt())) + HOUR;
+  for (const leak of loadLeaks()) start = Math.min(start, leakHours(leak)[0] - SUMMARY_LEAD_HOURS * HOUR);
+  return Math.max(start, UKV_START);
+}
+
+async function fetchWeather(location, fromMs, toMs) {
+  const params = new URLSearchParams({
+    // Rounded to about 1 km: the grid is 2 km, and the exact address isn't shared.
+    latitude: location.lat.toFixed(2),
+    longitude: location.lon.toFixed(2),
+    hourly: WEATHER_FIELDS.join(','),
+    models: WEATHER_MODEL,
+    timezone: 'UTC',
+    wind_speed_unit: 'mph',
+    start_date: hourKey(fromMs - HOUR).slice(0, 10),
+    end_date: hourKey(toMs).slice(0, 10),
+  });
+  const response = await fetch(`${WEATHER_URL}?${params}`);
+  if (!response.ok) throw new Error(`Weather request failed: ${response.status}`);
+  const { hourly } = await response.json();
+
+  const records = [];
+  hourly.time.forEach((time, i) => {
+    const ms = Date.parse(`${time}Z`);
+    // Hours the model hasn't produced yet come back empty; skip them so
+    // they're fetched again next time.
+    if (ms < fromMs || ms > toMs || hourly.precipitation[i] == null) return;
+    const record = { time: hourKey(ms), lat: Number(params.get('latitude')), lon: Number(params.get('longitude')) };
+    for (const field of WEATHER_FIELDS) record[field] = hourly[field][i];
+    records.push(record);
+  });
+  return records;
+}
+
+// Fills every missing hour and refreshes the latest few. Checks at most
+// every 15 minutes unless hours are missing or force is set.
+async function updateWeather(force = false) {
+  const location = loadLocation();
+  if (!location || !navigator.onLine || updateWeather.running) return;
+
+  const end = ceilHour(Date.now()); // the current hour, provisional
+  let missingFrom = null;
+  for (let t = earliestNeededHour(); t <= end - REFRESH_HOURS * HOUR; t += HOUR) {
+    if (!hours.has(hourKey(t))) { missingFrom = t; break; }
+  }
+  const recentlyChecked = Date.now() - loadJson(WEATHER_CHECKED_KEY, 0) < 15 * 60 * 1000;
+  if (missingFrom == null && recentlyChecked && !force) return;
+
+  const from = Math.min(missingFrom ?? Infinity, end - REFRESH_HOURS * HOUR);
+  updateWeather.running = true;
+  try {
+    for (let chunk = from; chunk <= end; chunk += MAX_DAYS_PER_REQUEST * 24 * HOUR) {
+      const chunkEnd = Math.min(end, chunk + MAX_DAYS_PER_REQUEST * 24 * HOUR - HOUR);
+      // Re-fetched hours only replace ones from the same location: after a
+      // location change, weather already fetched keeps its old location.
+      const records = (await fetchWeather(location, chunk, chunkEnd)).filter((record) => {
+        const saved = hours.get(record.time);
+        return !saved || (saved.lat === record.lat && saved.lon === record.lon);
+      });
+      await saveHours(records).catch(() => {}); // still usable this session if the database fails
+      records.forEach((record) => hours.set(record.time, record));
+    }
+    saveJson(WEATHER_CHECKED_KEY, Date.now());
+    render();
+  } catch (error) {
+    // Nothing is lost: the next open, reconnect or new leak tries again.
+    console.warn(error);
+  } finally {
+    updateWeather.running = false;
+  }
+}
+
+// --- Leak summary ---
+
+const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+const compassPoint = (degrees) => COMPASS[Math.round(degrees / 22.5) % 16];
+
+// Average of compass bearings, done with vectors so N and NNW average to
+// about N, not S.
+function averageBearing(bearings) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const x = bearings.reduce((sum, d) => sum + Math.sin(rad(d)), 0);
+  const y = bearings.reduce((sum, d) => sum + Math.cos(rad(d)), 0);
+  return ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
+}
+
+// e.g. "4.2 mm rain · Wind 18 mph SW · Gust 35 mph W", over the leak's
+// range plus the 6 hours before it. Null until all those hours are in.
+function weatherSummary(leak) {
+  const [first, last] = leakHours(leak);
+  const records = [];
+  for (let t = first - SUMMARY_LEAD_HOURS * HOUR; t <= last; t += HOUR) {
+    const record = hours.get(hourKey(t));
+    if (!record) return null;
+    records.push(record);
+  }
+  const rain = records.reduce((sum, r) => sum + r.rain, 0);
+  const wind = records.reduce((sum, r) => sum + r.wind_speed_10m, 0) / records.length;
+  const windFrom = averageBearing(records.map((r) => r.wind_direction_10m));
+  // Open-Meteo has no separate gust direction, so use the wind direction in
+  // the hour of the strongest gust.
+  const gustiest = records.reduce((a, b) => (b.wind_gusts_10m > a.wind_gusts_10m ? b : a));
+  return `${rain.toFixed(1)} mm rain · Wind ${Math.round(wind)} mph ${compassPoint(windFrom)}` +
+         ` · Gust ${Math.round(gustiest.wind_gusts_10m)} mph ${compassPoint(gustiest.wind_direction_10m)}`;
 }
 
 // ---------- Start up ----------
@@ -405,8 +604,16 @@ function init() {
   $('location-form').addEventListener('submit', applyLocation);
   window.addEventListener('online', updateApplyButton);
   window.addEventListener('offline', updateApplyButton);
+  window.addEventListener('online', () => updateWeather());
+  $('prompt-settings').addEventListener('click', openSettings);
 
   render();
+
+  // Load the saved hourly weather, then fill in anything missing.
+  loadHours()
+    .then((records) => records.forEach((record) => hours.set(record.time, record)))
+    .catch((error) => console.warn('Weather database unavailable', error))
+    .finally(() => { render(); updateWeather(); });
 
   // Ask the browser not to clear our data when the phone is low on space.
   navigator.storage?.persist?.();

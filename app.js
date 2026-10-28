@@ -1147,8 +1147,17 @@ function init() {
   };
   $('from-date').addEventListener('change', () => {
     const fromLabel = $('from-hour').selectedOptions[0]?.textContent.slice(0, 5);
+    const toLabel = $('to-hour').selectedOptions[0]?.textContent.slice(0, 5);
     fillFromHours(readHour('from-hour'), fromLabel);
-    fillToHours(readHour('to-hour'));
+    // To follows From's date, keeping its hour where that's still after From
+    // (otherwise it becomes one hour after From).
+    $('to-date').value = $('from-date').value;
+    fillToHours(NaN, toLabel);
+    if (!$('to-hour').options.length) { // From is the last hour of its day
+      const next = readHour('from-hour') + HOUR;
+      $('to-date').value = ukDate(next);
+      fillToHours(next);
+    }
     whenChanged();
   });
   $('from-hour').addEventListener('change', () => { fillToHours(readHour('to-hour')); whenChanged(); });

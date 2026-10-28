@@ -140,7 +140,7 @@ function render(newId) {
 // Bad values are blocked as they're entered, rather than reported on save.
 // Only a required field left empty is flagged, by turning it red.
 
-const severityRadios = () => document.querySelectorAll('input[name="severity"]');
+const severityChips = () => document.querySelectorAll('input[name="severity"]');
 
 function setInvalid(id, invalid) {
   $(id).classList.toggle('invalid', invalid);
@@ -176,7 +176,7 @@ function cleanVolume() {
 
   // Severity and volume can't both be entered: typing a volume clears the severity.
   if (digits) {
-    severityRadios().forEach((r) => { r.checked = false; });
+    severityChips().forEach((r) => { r.checked = false; });
     setInvalid('amount', false);
   }
 }
@@ -264,8 +264,12 @@ function init() {
   }
 
   $('volume').addEventListener('input', cleanVolume);
-  severityRadios().forEach((radio) =>
-    radio.addEventListener('change', () => {
+  // Severity chips are checkboxes so a selected one can be tapped off again,
+  // but only one can be on at a time.
+  severityChips().forEach((chip) =>
+    chip.addEventListener('change', () => {
+      if (!chip.checked) return;
+      severityChips().forEach((other) => { if (other !== chip) other.checked = false; });
       $('volume').value = '';
       cleanVolume.last = '';
       setInvalid('amount', false);

@@ -69,8 +69,9 @@ The app is being built in stages. Each stage adds something usable.
       times, holes or notes.
 - [x] **Stage 7: In-app insights.** Charts comparing weather during leaks
       with rainy hours that had no leak.
-- [ ] **Stage 8: Analysis notebook.** A Python (pandas) notebook that models
-      which weather factors predict a leak.
+- [ ] **Stage 8: Analysis notebook (on hold).** A Python (pandas) notebook
+      that models which weather factors predict a leak. Waiting until there's
+      enough real data to know what the report should say.
 - [ ] **Stage 9: Met Office station observations.** A scheduled GitHub
       Action collects hourly Met Office DataHub land observations. The API
       key is kept in GitHub Secrets and is never in the code.

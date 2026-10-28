@@ -55,15 +55,17 @@ The app is being built in stages. Each stage adds something usable.
       leak covers it, and a weather summary under each leak.
 - [x] **Stage 4: CSV export.** Export leaks and the hourly weather as one
       CSV file from Settings, for backup and analysis.
-- [ ] **Stage 5: In-app insights.** Charts comparing weather during leaks
-      with dry weather, plus CSV import to restore a backup.
-- [ ] **Stage 6: Analysis notebook.** A Python (pandas) notebook that models
+- [ ] **Stage 5: CSV import.** Load a CSV export back into the app, to
+      restore a backup on a new phone or after data is cleared.
+- [ ] **Stage 6: In-app insights.** Charts comparing weather during leaks
+      with dry weather.
+- [ ] **Stage 7: Analysis notebook.** A Python (pandas) notebook that models
       which weather factors predict a leak.
-- [ ] **Stage 7: Met Office station observations.** A scheduled GitHub
+- [ ] **Stage 8: Met Office station observations.** A scheduled GitHub
       Action collects hourly Met Office DataHub land observations. The API
       key is kept in GitHub Secrets and is never in the code.
-- [ ] **Stage 8: Quality.** Automated tests and CI.
-- [ ] **Stage 9: Record absences.** Mark periods away from home, so the
+- [ ] **Stage 9: Quality.** Automated tests and CI.
+- [ ] **Stage 10: Record absences.** Mark periods away from home, so the
       analysis doesn't count them as dry.
 
 ## Tech

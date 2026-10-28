@@ -14,6 +14,7 @@ south-westerly gusts, that points at one side of the roof.
 ## Using it
 
 - Open the app on an Android phone in Chrome, then use **Add to Home screen**.
+- Set your postcode once in **Settings** (the cog, top right).
 - Tap **+** whenever you find a leak. If you were out when it happened,
   enter the whole time you were away.
 - You don't log dry spells: any time without a logged leak counts as dry,
@@ -26,6 +27,9 @@ south-westerly gusts, that points at one side of the roof.
   is no secret that could leak into this repository.
 - **Data stays on the phone.** Leaks and the flat's location are stored in
   the browser on the device. They are not in this repository.
+- **Postcode lookup.** When you set the location, the postcode is sent once
+  to [postcodes.io](https://postcodes.io/) to find its map position. It
+  isn't sent anywhere else.
 - `.gitignore` excludes exported CSVs and any `.env` or secrets files, so they
   can't be committed by accident.
 
@@ -34,25 +38,23 @@ south-westerly gusts, that points at one side of the roof.
 The app is being built in stages. Each stage adds something usable.
 
 - [x] **Stage 1: Record leaks.** Leaks with a time range, severity or spill
-      volume, and notes, stored on the phone. Any time
-      without a logged leak counts as dry. Installable and works offline.
-- [ ] **Stage 2: Attach weather.** Fetch Met Office UKV hourly weather
-      (via Open-Meteo) for the hours before each check: rain totals, mean
+      volume, and notes, stored on the phone. Any time without a logged
+      leak counts as dry. Installable and works offline.
+- [x] **Stage 2: Set location.** A Settings page to set the flat's
+      location by UK postcode, looked up once and stored on the phone.
+- [ ] **Stage 3: Attach weather.** Fetch Met Office UKV hourly weather
+      (via Open-Meteo) for the hours before each leak: rain totals, mean
       wind, max gust and wind direction.
-- [ ] **Stage 3: In-app insights.** Charts comparing weather on leak checks
-      with weather on dry checks, plus CSV import to restore a backup.
-
-- [ ] **Stage 4: Analysis notebook.** A Python (pandas) notebook that models
+- [ ] **Stage 4: In-app insights.** Charts comparing weather during leaks
+      with dry weather, plus CSV import to restore a backup.
+- [ ] **Stage 5: Analysis notebook.** A Python (pandas) notebook that models
       which weather factors predict a leak.
-- [ ] **Stage 5: Met Office station observations.** A scheduled GitHub
+- [ ] **Stage 6: Met Office station observations.** A scheduled GitHub
       Action collects hourly Met Office DataHub land observations. The API
       key is kept in GitHub Secrets and is never in the code.
-- [ ] **Stage 6 Quality.** Automated tests and CI.
-- [ ] **Stage 7: Record absences.** Mark periods away from home, so the
+- [ ] **Stage 7: Quality.** Automated tests and CI.
+- [ ] **Stage 8: Record absences.** Mark periods away from home, so the
       analysis doesn't count them as dry.
-
-
-
 
 ## Tech
 

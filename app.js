@@ -1,13 +1,15 @@
-// Leak Log - stage 1: record leaks on the phone.
+// Leak Log - stage 1: record leaks on the phone. Stage 2: set the flat's
+// location by postcode, for the weather lookups to come.
 //
 // Only leaks are logged. Any time after tracking started that isn't inside
 // a logged leak counts as dry.
 //
-// All data is kept in the browser's localStorage on this device.
-// Nothing is sent to any server.
+// All data is kept in the browser's localStorage on this device. The only
+// thing sent anywhere is the postcode, to postcodes.io, when it's applied.
 
 const LEAKS_KEY = 'leakLog.leaks.v1';
 const TRACKING_KEY = 'leakLog.trackingStartedAt';
+const LOCATION_KEY = 'leakLog.location.v1';
 const MAX_VOLUME_ML = 10000;
 
 // ---------- Storage ----------
@@ -235,16 +237,134 @@ function confirmDelete() {
   $('delete-dialog').close();
   toast('Leak deleted');
 
-  // Let the row slide away before the list is redrawn. The timer is a
-  // fallback: browsers can pause animations (e.g. app in the background),
-  // and then the animation's end never fires.
+  // Let the row slide away before the list is redrawn.
   const row = [...$('history').children].find((li) => li.dataset.id === id);
-  if (!row || reduceMotion()) return render();
-  row.classList.add('leaving');
-  let done = false;
-  const finish = () => { if (!done) { done = true; render(); } };
-  row.addEventListener('animationend', finish, { once: true });
-  setTimeout(finish, 400);
+  if (!row) return render();
+  animate(row, 'leaving', render);
+}
+
+// Plays the animation for className on el, then calls done. The timer is a
+// fallback: browsers can pause animations (e.g. app in the background),
+// and then the animation's end never fires.
+function animate(el, className, done) {
+  if (reduceMotion()) return done();
+  el.classList.add(className);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    el.classList.remove(className);
+    done();
+  };
+  el.addEventListener('animationend', finish, { once: true });
+  setTimeout(finish, 450);
+}
+
+// ---------- Settings: location ----------
+//
+// The postcode is looked up once, on Apply, and only the result is kept.
+
+// Full UK postcode: outward code ("AB1", "SW1A") then inward code ("2CD").
+const POSTCODE_PATTERN = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/;
+const POSTCODE_LOOKUP = 'https://api.postcodes.io/postcodes/';
+
+const loadLocation = () => loadJson(LOCATION_KEY, null);
+const describeLocation = (loc) => (loc.area ? `${loc.postcode} (${loc.area})` : loc.postcode);
+
+// Capitals, letters/digits only, at most one space, at most 8 characters.
+function tidyPostcode(text) {
+  const [first, ...rest] = text.toUpperCase().replace(/[^A-Z0-9 ]/g, '').trimStart().split(/ +/);
+  return (rest.length ? `${first} ${rest.join('')}` : first).slice(0, 8);
+}
+
+function cleanPostcode() {
+  const input = $('postcode');
+  const tidy = tidyPostcode(input.value);
+  if (tidy !== input.value) {
+    const caret = tidyPostcode(input.value.slice(0, input.selectionStart)).length;
+    input.value = tidy;
+    input.setSelectionRange(caret, caret);
+  }
+  showPostcodeError(false);
+}
+
+// Red on its own for an empty field; red plus a hint when the value is wrong.
+function showPostcodeError(invalid, hint = '') {
+  setInvalid('postcode-field', invalid);
+  $('postcode-hint').textContent = hint;
+  $('postcode-hint').hidden = !hint;
+}
+
+function updateApplyButton() {
+  const button = $('apply-location');
+  button.disabled = !navigator.onLine;
+  button.textContent = navigator.onLine ? 'Apply' : 'Needs an internet connection';
+}
+
+function renderLocation() {
+  const loc = loadLocation();
+  $('current-location').textContent = loc ? `Current: ${describeLocation(loc)}` : '';
+  $('current-location').hidden = !loc;
+}
+
+async function applyLocation(event) {
+  event.preventDefault();
+  const postcode = $('postcode').value.trim();
+  if (!postcode) return showPostcodeError(true);
+  if (!POSTCODE_PATTERN.test(postcode)) return showPostcodeError(true, 'Enter a full UK postcode');
+  if (!navigator.onLine) return updateApplyButton();
+
+  const button = $('apply-location');
+  button.disabled = true;
+  button.textContent = 'Looking up…';
+  try {
+    const response = await fetch(POSTCODE_LOOKUP + encodeURIComponent(postcode.replace(' ', '')));
+    const result = response.ok ? (await response.json()).result : null;
+    if (response.status === 404 || (result && result.latitude == null)) {
+      return showPostcodeError(true, 'Postcode not found');
+    }
+    if (!result) throw new Error(`Lookup failed: ${response.status}`);
+
+    const location = {
+      postcode: result.postcode, // standard form, with the space
+      lat: result.latitude,
+      lon: result.longitude,
+      area: result.admin_district ?? '',
+      setAt: new Date().toISOString(),
+    };
+    saveJson(LOCATION_KEY, location);
+    $('postcode').value = location.postcode;
+    renderLocation();
+    toast(`Location set: ${describeLocation(location)}`);
+  } catch {
+    showPostcodeError(true, "Couldn't reach the postcode lookup. Try again.");
+  } finally {
+    updateApplyButton();
+  }
+}
+
+// Opening Settings adds a history entry, so the phone's back button closes
+// it instead of leaving the app.
+function openSettings() {
+  if (!$('settings-view').hidden) return;
+  history.pushState({ view: 'settings' }, '');
+  $('postcode').value = loadLocation()?.postcode ?? '';
+  showPostcodeError(false);
+  updateApplyButton();
+  renderLocation();
+  for (const el of document.querySelectorAll('header, main, #fab')) el.inert = true;
+  const view = $('settings-view');
+  view.hidden = false;
+  view.scrollTop = 0;
+  animate(view, 'entering', () => {});
+}
+
+function closeSettings() {
+  const view = $('settings-view');
+  if (view.hidden) return;
+  for (const el of document.querySelectorAll('header, main, #fab')) el.inert = false;
+  view.classList.remove('entering');
+  animate(view, 'leaving', () => { view.hidden = true; });
 }
 
 // ---------- Start up ----------
@@ -277,6 +397,14 @@ function init() {
 
   $('cancel-delete').addEventListener('click', () => $('delete-dialog').close());
   $('confirm-delete').addEventListener('click', confirmDelete);
+
+  $('open-settings').addEventListener('click', openSettings);
+  $('close-settings').addEventListener('click', () => history.back());
+  window.addEventListener('popstate', closeSettings);
+  $('postcode').addEventListener('input', cleanPostcode);
+  $('location-form').addEventListener('submit', applyLocation);
+  window.addEventListener('online', updateApplyButton);
+  window.addEventListener('offline', updateApplyButton);
 
   render();
 

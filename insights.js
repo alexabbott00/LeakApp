@@ -5,15 +5,18 @@
 // doesn't matter while the app runs. Everything is worked out on the phone
 // and nothing is sent anywhere.
 //
-// An hour is a "leak" hour if a logged leak covers it, and "dry" otherwise,
-// from the day tracking started. Hours before that are unknown, not dry, so
-// they're left out (a leak logged for an earlier time still counts: it's a
-// leak, and its weather was fetched for this).
+// The charts compare two groups of rainy hours (see buildModel): "leak" hours,
+// which a logged leak covers, and "rainy" hours, with no leak. Hours with no
+// rain are in neither group. Rainy hours count from the day tracking started;
+// hours before that are unknown, so they're left out. A leak logged for an
+// earlier time still counts: it's a leak, and its weather was fetched for this.
 
 (() => {
   'use strict';
 
   const MIN_LEAKS_TO_COMPARE = 3;
+  const RAINY_MM = 0.1; // an hour is "rainy" with at least this much rain in it
+  const MIN_RAINY_HOURS = 10; // fewer rainy hours than this isn't enough to compare
   const LEAD_HOURS = 24; // timeline: hours shown before a leak starts
   const TRAIL_HOURS = 6; // ...and after it ends
   const SECTORS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; // wind comes FROM these
@@ -25,7 +28,6 @@
     leakId: null, // leak shown in the timeline
     selected: null, // hour picked in the timeline (slot number)
     rainWindow: 6,
-    hideDry: true, // charts 2 and 3 show leak hours only until this is switched off
     refocus: null, // a control to put keyboard focus back on after a redraw
     sector: null, // direction picked in the wind rose
     tables: { timeline: false, compare: false, rose: false }, // "Show table" per chart
@@ -124,16 +126,29 @@
       const [first, last] = leakHours(leak);
       for (let t = first; t <= last; t += HOUR) leakAt.set(t, leak);
     }
+    // Charts 2 and 3 compare two groups of rainy hours (rain in that hour is at
+    // least RAINY_MM): "leak" hours, covered by a logged leak, and "rainy"
+    // hours with no leak, from tracking start. Hours with no rain are in
+    // neither group, including leak hours with no rain in that hour (e.g. the
+    // quiet hours inside a long logged range); those are counted in leakNoRain
+    // so the chart can say how many were left out.
     const rows = [];
+    let leakNoRain = 0;
     for (const [key, rec] of hours) {
       const t = Date.parse(key);
       if (t > lastFinal) continue;
       if ([rec.rain, rec.wind_speed_10m, rec.wind_gusts_10m, rec.wind_direction_10m].some((v) => v == null)) continue;
-      const status = leakAt.has(t) ? 'leak' : t >= trackedFrom ? 'dry' : null;
-      if (status) rows.push({ t, rec, status });
+      const rainy = rec.rain >= RAINY_MM;
+      if (leakAt.has(t)) {
+        if (rainy) rows.push({ t, rec, status: 'leak' });
+        else leakNoRain++;
+      } else if (rainy && t >= trackedFrom) {
+        rows.push({ t, rec, status: 'rainy' });
+      }
     }
     rows.sort((a, b) => a.t - b.t);
-    return { leaks, leakAt, rows, trackedFrom, lastFinal };
+    const leakRainy = rows.filter((row) => row.status === 'leak').length;
+    return { leaks, leakAt, rows, leakRainy, rainyCount: rows.length - leakRainy, leakNoRain, trackedFrom, lastFinal };
   }
 
   // Rain over the hour and the ones before it, or null if any is missing.
@@ -147,9 +162,9 @@
     return total;
   }
 
-  // Values for leak and dry hours that have the whole rain window.
+  // Values for leak and rainy hours that have the whole rain window.
   function compareValues(model, windowHours) {
-    const groups = { leak: { rain: [], wind: [], gust: [] }, dry: { rain: [], wind: [], gust: [] } };
+    const groups = { leak: { rain: [], wind: [], gust: [] }, rainy: { rain: [], wind: [], gust: [] } };
     for (const row of model.rows) {
       const rain = windowRain(row.t, windowHours);
       if (rain == null) continue;
@@ -162,7 +177,7 @@
   }
 
   function roseCounts(model) {
-    const counts = { leak: Array(8).fill(0), dry: Array(8).fill(0) };
+    const counts = { leak: Array(8).fill(0), rainy: Array(8).fill(0) };
     for (const row of model.rows) counts[row.status][Math.round(row.rec.wind_direction_10m / 45) % 8]++;
     return counts;
   }
@@ -263,10 +278,10 @@
       'Use the previous and next buttons, or the table, to read each hour.'));
 
     const tableBlock = table(`Hourly weather around the leak on ${formatRange(leak.from, leak.to)}`,
-      ['Hour (UK time)', 'Leak or dry', 'Rain (mm)', 'Wind (mph)', 'Gust (mph)', 'Wind from'],
+      ['Hour (UK time)', 'Leak or no leak', 'Rain (mm)', 'Wind (mph)', 'Gust (mph)', 'Wind from'],
       slots.filter((slot) => slot.rec).map((slot) => [
         `${formatDay(new Date(slot.t - HOUR))}, ${ukHour(slot.t - HOUR)}–${ukHour(slot.t)}`,
-        model.leakAt.has(slot.t) ? 'Leak' : 'Dry',
+        model.leakAt.has(slot.t) ? 'Leak' : 'No leak',
         oneDecimal(slot.rec.rain ?? 0), whole(slot.rec.wind_speed_10m ?? 0),
         whole(slot.rec.wind_gusts_10m ?? 0), compassPoint(slot.rec.wind_direction_10m ?? 0),
       ]));
@@ -282,8 +297,8 @@
         const slot = slots[i];
         const rec = slot.rec;
         readout.replaceChildren(...[h('strong', {}, `${formatDay(new Date(slot.t - HOUR))}, ${ukHour(slot.t - HOUR)}–${ukHour(slot.t)}`),
-          h('span', { class: `status ${model.leakAt.has(slot.t) ? 'leak' : 'dry'}` },
-            swatch(model.leakAt.has(slot.t) ? 'leak' : 'dry'), model.leakAt.has(slot.t) ? 'Leak hour' : 'Dry hour'),
+          h('span', { class: `status ${model.leakAt.has(slot.t) ? 'leak' : 'noleak'}` },
+            swatch(model.leakAt.has(slot.t) ? 'leak' : 'noleak'), model.leakAt.has(slot.t) ? 'Leak hour' : 'No-leak hour'),
           rec && rec.rain != null
             ? h('div', { class: 'weather readout-values' },
               weatherPart('rain', `${oneDecimal(rec.rain)} mm`, `Rain ${oneDecimal(rec.rain)} mm`),
@@ -418,37 +433,42 @@
     };
   }
 
-  // ---------- Chart 2: leak hours vs dry hours ----------
+  // ---------- Charts 2 and 3: leak hours vs rainy hours ----------
 
-  // "Hide dry hours": one setting shared by charts 2 and 3, so they never
-  // disagree. Scales stay put when it's switched, so the leak marks don't jump.
-  function hideDrySwitch(key) {
-    const id = `${key}-hide-dry`;
-    const input = h('input', { type: 'checkbox', role: 'switch', id, checked: state.hideDry });
-    input.addEventListener('change', () => {
-      state.hideDry = input.checked;
-      state.refocus = `#${id}`;
-      renderInsights(true);
-    });
-    return h('label', { class: 'switch' }, input,
-      h('span', { class: 'switch-track', 'aria-hidden': 'true' }, h('span', { class: 'switch-thumb' })),
-      h('span', { text: 'Hide dry hours' }));
+  // Why these charts can't be drawn yet, or null if they can.
+  function compareBlocker(model) {
+    if (model.leaks.length < MIN_LEAKS_TO_COMPARE) return 'Log a few more leaks to compare them with rainy hours.';
+    if (!model.leakRainy) return 'None of your leak hours had rain, so there is nothing to compare yet.';
+    if (model.rainyCount < MIN_RAINY_HOURS) return 'Not enough rainy hours without a leak to compare yet.';
+    return null;
+  }
+
+  // What the two groups are, and how many leak hours were left out for having
+  // no rain in them.
+  function groupNotes(model) {
+    const notes = [h('p', { class: 'supporting small',
+      text: `Leak hours: a leak was logged and it rained that hour. Rainy hours: no leak, and ${RAINY_MM} mm or more of rain that hour.` })];
+    if (model.leakNoRain) {
+      notes.push(h('p', { class: 'supporting small',
+        text: `${plural(model.leakNoRain, 'more leak hour')} had no rain that hour and ${model.leakNoRain === 1 ? "isn't" : "aren't"} included.` }));
+    }
+    return notes;
   }
 
   function compareCard(model) {
-    const card = cardShell('compare', 'Leak hours vs dry hours',
-      'The typical value (dot) and the middle half of values (bar) when it leaked and when it was dry.');
-    if (model.leaks.length < MIN_LEAKS_TO_COMPARE) {
-      card.append(h('p', { class: 'insight-note', text: 'Log a few more leaks to compare them with dry weather.' }));
+    const card = cardShell('compare', 'Leak hours vs rainy hours',
+      'The typical value (dot) and the middle half of values (bar), for rainy hours with a leak and without one.');
+    const blocked = compareBlocker(model);
+    if (blocked) {
+      card.append(h('p', { class: 'insight-note', text: blocked }));
       return { card };
     }
     const windowHours = state.rainWindow;
     const windowLabel = RAIN_WINDOWS.find(([n]) => n === windowHours)[1].toLowerCase();
     const groups = compareValues(model, windowHours);
-    const kinds = state.hideDry ? ['leak'] : ['leak', 'dry']; // the groups shown
+    const kinds = ['leak', 'rainy'];
     const sample = h('p', { class: 'sample',
-      text: `Based on ${plural(groups.leak.rain.length, 'leak hour')}` +
-        `${state.hideDry ? '' : ` and ${plural(groups.dry.rain.length, 'dry hour')}`}.` });
+      text: `Based on ${plural(groups.leak.rain.length, 'leak hour')} and ${plural(groups.rainy.rain.length, 'rainy hour')}.` });
 
     const control = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Rain over' },
       ...RAIN_WINDOWS.map(([n, label]) => h('label', {},
@@ -469,17 +489,17 @@
     const tableRows = [];
     for (const [field, title, unit, digits] of measures) {
       const stats = {};
-      for (const kind of ['leak', 'dry']) {
+      for (const kind of kinds) {
         const sorted = [...groups[kind][field]].sort((a, b) => a - b);
         stats[kind] = sorted.length
           ? { q1: quantile(sorted, 0.25), median: quantile(sorted, 0.5), q3: quantile(sorted, 0.75), n: sorted.length }
           : null;
       }
-      const top = niceCeil(Math.max(0.5, ...['leak', 'dry'].map((kind) => stats[kind]?.q3 ?? 0)));
+      const top = niceCeil(Math.max(0.5, ...kinds.map((kind) => stats[kind]?.q3 ?? 0)));
       const at = (v) => `${Math.min(100, Math.max(0, (v / top) * 100))}%`;
       const rows = kinds.map((kind) => {
         const st = stats[kind];
-        const label = h('span', { class: 'range-label' }, swatch(kind), kind === 'leak' ? 'Leak' : 'Dry');
+        const label = h('span', { class: 'range-label' }, swatch(kind), kind === 'leak' ? 'Leak' : 'Rainy');
         const track = h('div', { class: 'range-track' });
         const value = h('div', { class: 'range-value' });
         if (st) {
@@ -488,7 +508,7 @@
             h('span', { class: `range-dot ${kind}`, style: `left:${at(st.median)}` }));
           value.append(h('strong', { text: `${st.median.toFixed(digits)} ${unit}` }),
             h('span', { text: `${st.q1.toFixed(digits)}–${st.q3.toFixed(digits)}` }));
-          tableRows.push([title, kind === 'leak' ? 'Leak hours' : 'Dry hours', st.median.toFixed(digits),
+          tableRows.push([title, kind === 'leak' ? 'Leak hours' : 'Rainy hours', st.median.toFixed(digits),
             st.q1.toFixed(digits), st.q3.toFixed(digits), count(st.n)]);
         } else {
           value.append(h('span', { text: 'No hours' }));
@@ -504,12 +524,12 @@
         h('div', { class: 'range-axis' }, h('span', { text: '0' }), h('span', { text: `${top} ${unit}` }))));
     }
 
-    const key = legend(['leak', 'Leak hours'], ...(state.hideDry ? [] : [['dry', 'Dry hours']]));
+    const key = legend(['leak', 'Leak hours'], ['rainy', 'Rainy hours']);
     const chart = h('div', { class: 'chart-block' }, blocks);
-    const tableBlock = table(`Leak hours vs dry hours, rain ${windowLabel}`,
+    const tableBlock = table(`Leak hours vs rainy hours, rain ${windowLabel}`,
       ['Measure', 'Hours', 'Typical (median)', 'Lower quarter', 'Upper quarter', 'Number of hours'], tableRows);
     tableBlock.classList.add('table-block');
-    card.append(sample, hideDrySwitch('compare'), key, chart, summaryNode('compare', summary.join(' ')));
+    card.append(sample, key, ...groupNotes(model), chart, summaryNode('compare', summary.join(' ')));
     addTableToggle(card, 'compare', [key, chart], tableBlock);
     return { card };
   }
@@ -518,45 +538,43 @@
 
   function roseCard(model) {
     const card = cardShell('rose', 'Wind direction',
-      'Where the wind came from: the share of leak hours and of dry hours for each direction.');
-    if (model.leaks.length < MIN_LEAKS_TO_COMPARE) {
-      card.append(h('p', { class: 'insight-note', text: 'Log a few more leaks to compare them with dry weather.' }));
+      'Where the wind came from: the share of leak hours and of rainy hours for each direction.');
+    const blocked = compareBlocker(model);
+    if (blocked) {
+      card.append(h('p', { class: 'insight-note', text: blocked }));
       return { card };
     }
     const counts = roseCounts(model);
-    const totals = { leak: counts.leak.reduce((a, b) => a + b, 0), dry: counts.dry.reduce((a, b) => a + b, 0) };
+    const totals = { leak: counts.leak.reduce((a, b) => a + b, 0), rainy: counts.rainy.reduce((a, b) => a + b, 0) };
     const share = (kind, k) => (totals[kind] ? counts[kind][k] / totals[kind] : 0);
     const best = (kind) => counts[kind].reduce((top, c, k) => (c > counts[kind][top] ? k : top), 0);
-    const hideDry = state.hideDry;
-    const sentence = (k) => `${SECTORS[k]}: ${percent(share('leak', k))} of leak hours (${count(counts.leak[k])})` +
-      (hideDry ? '' : ` and ${percent(share('dry', k))} of dry hours (${count(counts.dry[k])})`);
+    const sentence = (k) => `${SECTORS[k]}: ${percent(share('leak', k))} of leak hours (${count(counts.leak[k])}) ` +
+      `and ${percent(share('rainy', k))} of rainy hours (${count(counts.rainy[k])})`;
 
     const sample = h('p', { class: 'sample',
-      text: `Based on ${plural(totals.leak, 'leak hour')}${hideDry ? '' : ` and ${plural(totals.dry, 'dry hour')}`}.` });
-    const key = legend(['leak', 'Leak hours'], ...(hideDry ? [] : [['dry', 'Dry hours']]));
+      text: `Based on ${plural(totals.leak, 'leak hour')} and ${plural(totals.rainy, 'rainy hour')}.` });
+    const key = legend(['leak', 'Leak hours'], ['rainy', 'Rainy hours']);
     const chart = h('div', { class: 'chart-block viz rose' });
     const readout = h('p', { class: 'readout', 'aria-live': 'polite' });
-    const tableBlock = table(hideDry ? 'Wind direction for leak hours' : 'Wind direction for leak hours and dry hours',
-      ['Wind from', 'Leak hours', 'Share of leak hours', ...(hideDry ? [] : ['Dry hours', 'Share of dry hours'])],
+    const tableBlock = table('Wind direction for leak hours and rainy hours',
+      ['Wind from', 'Leak hours', 'Share of leak hours', 'Rainy hours', 'Share of rainy hours'],
       SECTORS.map((name, k) => [name, count(counts.leak[k]), percent(share('leak', k)),
-        ...(hideDry ? [] : [count(counts.dry[k]), percent(share('dry', k))])]));
+        count(counts.rainy[k]), percent(share('rainy', k))]));
     tableBlock.classList.add('table-block');
-    const defaultReadout = totals.leak
-      ? `Most leak hours: wind from ${SECTORS[best('leak')]} (${percent(share('leak', best('leak')))}).` +
-        `${hideDry ? '' : ` Most dry hours: ${SECTORS[best('dry')]} (${percent(share('dry', best('dry')))}).`} Tap a direction for its numbers.`
-      : 'No leak hours with weather yet.';
-    readout.textContent = defaultReadout;
+    readout.textContent = `Most leak hours: wind from ${SECTORS[best('leak')]} (${percent(share('leak', best('leak')))}). ` +
+      `Most rainy hours: ${SECTORS[best('rainy')]} (${percent(share('rainy', best('rainy')))}). Tap a direction for its numbers.`;
 
     const caption = h('p', { class: 'supporting small' });
-    card.append(sample, hideDrySwitch('rose'), key, chart, readout, caption,
-      summaryNode('rose', `Wind direction. ${totals.leak ? `Most leak hours had wind from ${SECTORS[best('leak')]}, ${percent(share('leak', best('leak')))} of them. ` : ''}${SECTORS.map((_, k) => sentence(k)).join('. ')}.`));
+    card.append(sample, key, ...groupNotes(model), chart, readout, caption,
+      summaryNode('rose', `Wind direction. Most leak hours had wind from ${SECTORS[best('leak')]}, ${percent(share('leak', best('leak')))} of them. ` +
+        `${SECTORS.map((_, k) => sentence(k)).join('. ')}.`));
     addTableToggle(card, 'rose', [key, chart, readout, caption], tableBlock);
 
     const draw = () => {
       const size = Math.min(Math.round(chart.clientWidth) || 300, 340);
       const centreX = size / 2;
       const radius = size / 2 - 34; // room for the direction letters
-      const maxShare = Math.max(0.05, ...SECTORS.flatMap((_, k) => [share('leak', k), share('dry', k)]));
+      const maxShare = Math.max(0.05, ...SECTORS.flatMap((_, k) => [share('leak', k), share('rainy', k)]));
       const ringMax = Math.max(0.2, Math.ceil(maxShare / 0.1) * 0.1); // outer ring, in steps of 10%
       caption.textContent = `Rings mark ${percent(ringMax / 2)} and ${percent(ringMax)} of hours, from the centre out. ` +
         'Wind direction is where the wind blows from.';
@@ -574,9 +592,9 @@
       SECTORS.forEach((name, k) => {
         const angle = k * 45;
         const rLeak = (share('leak', k) / ringMax) * radius;
-        const rDry = (share('dry', k) / ringMax) * radius;
+        const rRainy = (share('rainy', k) / ringMax) * radius;
         if (rLeak > 0) svg.append(s('path', { class: 'wedge leak grow-out', d: wedge(angle - 19, angle - 1, rLeak), style: `transform-origin:${centreX}px ${centreX}px` }));
-        if (rDry > 0 && !hideDry) svg.append(s('path', { class: 'wedge dry grow-out', d: wedge(angle + 1, angle + 19, rDry), style: `transform-origin:${centreX}px ${centreX}px` }));
+        if (rRainy > 0) svg.append(s('path', { class: 'wedge rainy grow-out', d: wedge(angle + 1, angle + 19, rRainy), style: `transform-origin:${centreX}px ${centreX}px` }));
         const [lx, ly] = point(angle, radius + 18);
         svg.append(s('text', { class: 'compass', x: lx, y: ly + 4, 'text-anchor': 'middle', text: name }));
       });
@@ -607,7 +625,7 @@
     const model = buildModel();
     const width = Math.round(root.clientWidth);
     const signature = JSON.stringify([model.leaks.map((l) => [l.id, l.from, l.to, l.updatedAt ?? '']),
-      hours.size, model.lastFinal, !!loadLocation(), width, state.leakId, state.rainWindow, state.hideDry]);
+      hours.size, model.lastFinal, !!loadLocation(), width, state.leakId, state.rainWindow]);
     if (!force && signature === state.signature) return;
     state.signature = signature;
     state.model = model;
@@ -619,7 +637,7 @@
       return button;
     };
     if (!model.leaks.length) {
-      root.append(emptyCard('No leaks yet', 'Insights compare the weather during leaks with dry weather. Log a leak to get started.'));
+      root.append(emptyCard('No leaks yet', 'Insights compare the weather during leaks with rainy hours without a leak. Log a leak to get started.'));
       return;
     }
     if (!loadLocation()) {

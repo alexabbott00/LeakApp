@@ -59,20 +59,20 @@ body[data-tab="insights"] .fab {
 
 /* ---------- Insights ---------- */
 
-/* Chart colours. Leak is the one orange; dry is blue; weather lines and bars
+/* Chart colours. Leak is the one orange; rainy hours are blue; weather lines and bars
    use neutral ink. Checked with the chart-palette validator, light and dark. */
 :root {
   --viz-leak: #eb6834;
   --viz-leak-wash: rgba(235, 104, 52, 0.18);
-  --viz-dry: #2a78d6;
-  --viz-dry-wash: rgba(42, 120, 214, 0.14);
+  --viz-rainy: #2a78d6;
+  --viz-rainy-wash: rgba(42, 120, 214, 0.14);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --viz-leak: #d95926;
     --viz-leak-wash: rgba(217, 89, 38, 0.30);
-    --viz-dry: #3987e5;
-    --viz-dry-wash: rgba(57, 135, 229, 0.24);
+    --viz-rainy: #3987e5;
+    --viz-rainy-wash: rgba(57, 135, 229, 0.24);
   }
 }
 
@@ -115,7 +115,8 @@ body[data-tab="insights"] .fab {
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .swatch { flex: none; width: 12px; height: 12px; border-radius: 3px; box-sizing: border-box; }
 .swatch.leak { background: var(--viz-leak); }
-.swatch.dry { background: var(--viz-dry-wash); border: 2px solid var(--viz-dry); }
+.swatch.noleak { background: none; border: 2px solid var(--md-outline); } /* timeline: an hour with no leak, whatever the weather */
+.swatch.rainy { background: var(--viz-rainy-wash); border: 2px solid var(--viz-rainy); }
 .swatch.key-wind, .swatch.key-gust { width: 16px; height: 3px; border-radius: 2px; }
 .swatch.key-wind { background: var(--md-on-surface); }
 .swatch.key-gust { background: var(--md-outline); }
@@ -151,7 +152,7 @@ body[data-tab="insights"] .fab {
 .chart .sel-dot.wind { fill: var(--md-on-surface); }
 .chart .sel-dot.gust { fill: var(--md-outline); }
 .chart .wedge.leak { fill: var(--viz-leak); }
-.chart .wedge.dry { fill: var(--viz-dry-wash); stroke: var(--viz-dry); stroke-width: 1.5; }
+.chart .wedge.rainy { fill: var(--viz-rainy-wash); stroke: var(--viz-rainy); stroke-width: 1.5; }
 .chart .hit { fill: transparent; cursor: pointer; outline: none; }
 .chart .hit:hover { fill: color-mix(in srgb, var(--md-on-surface) 6%, transparent); }
 .chart .hit:focus-visible { stroke: var(--md-primary); stroke-width: 3; }
@@ -191,7 +192,7 @@ p.readout { display: block; margin: 8px 0 4px; }
 .range-track { position: relative; height: 24px; border-left: 1px solid var(--md-outline); }
 .range-bar { position: absolute; top: 5px; height: 14px; box-sizing: border-box; border-radius: 4px; }
 .range-bar.leak { background: var(--viz-leak); }
-.range-bar.dry { background: var(--viz-dry-wash); border: 2px solid var(--viz-dry); }
+.range-bar.rainy { background: var(--viz-rainy-wash); border: 2px solid var(--viz-rainy); }
 .range-dot {
   position: absolute;
   top: 50%;
@@ -202,7 +203,7 @@ p.readout { display: block; margin: 8px 0 4px; }
   border-radius: 50%;
 }
 .range-dot.leak { background: var(--md-surface); border: 2px solid var(--md-on-surface); }
-.range-dot.dry { background: var(--viz-dry); border: 2px solid var(--md-surface); }
+.range-dot.rainy { background: var(--viz-rainy); border: 2px solid var(--md-surface); }
 .range-value { display: flex; flex-direction: column; font-size: 0.875rem; color: var(--md-on-surface); }
 .range-value strong { font-weight: 600; }
 .range-value span { font-size: 0.75rem; color: var(--md-on-surface-variant); }
@@ -246,32 +247,3 @@ p.readout { display: block; margin: 8px 0 4px; }
 }
 .data-table thead th { position: sticky; top: 0; background: var(--md-surface-container); font-weight: 500; }
 .data-table tbody th { font-weight: 500; }
-
-/* MD3 switch ("Hide dry hours") */
-.switch { position: relative; display: inline-flex; align-items: center; gap: 12px; min-height: 48px; margin: 0 0 4px; font-size: 0.875rem; font-weight: 400; color: var(--md-on-surface); cursor: pointer; }
-.switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.switch-track {
-  position: relative;
-  flex: none;
-  width: 52px;
-  height: 32px;
-  box-sizing: border-box;
-  border: 2px solid var(--md-outline);
-  border-radius: 16px;
-  background: var(--md-surface-container-high);
-  transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard);
-}
-.switch-thumb {
-  position: absolute;
-  top: 50%;
-  left: 6px;
-  width: 16px;
-  height: 16px;
-  margin-top: -8px;
-  border-radius: 50%;
-  background: var(--md-outline);
-  transition: transform var(--dur-medium) var(--ease-standard), background-color var(--dur-short) var(--ease-standard);
-}
-.switch input:checked + .switch-track { border-color: var(--md-primary); background: var(--md-primary); }
-.switch input:checked + .switch-track .switch-thumb { background: var(--md-on-primary); transform: translateX(18px) scale(1.5); }
-.switch input:focus-visible + .switch-track { outline: 3px solid var(--md-primary); outline-offset: 3px; }

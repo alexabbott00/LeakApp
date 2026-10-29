@@ -255,7 +255,7 @@ function fillHourList(select, dateStr, allowed, wantedMs, wantedLabel) {
 }
 
 function fillFromHours(wantedMs, wantedLabel) {
-  $('from-date').max = ukDate(latestFrom());
+  setIfChanged($('from-date'), 'max', ukDate(latestFrom()));
   fillHourList($('from-hour'), $('from-date').value, (t) => t <= latestFrom(), wantedMs, wantedLabel);
 }
 
@@ -269,27 +269,38 @@ function fillToHours(wantedMs, wantedLabel) {
     wantedLabel = undefined;
     $('to-date').value = ukDate(wantedMs);
   }
-  $('to-date').min = $('from-date').value;
-  $('to-date').max = ukDate(latestTo());
+  setIfChanged($('to-date'), 'min', $('from-date').value);
+  setIfChanged($('to-date'), 'max', ukDate(latestTo()));
   const after = isNaN(from) ? () => true : (t) => t > from;
   fillHourList($('to-hour'), $('to-date').value, (t) => after(t) && t <= latestTo(), wantedMs, wantedLabel);
 }
 
+// Rewriting a date field's limits, even to the same value, can scramble what
+// is being typed into it, so only write when they actually change.
+const setIfChanged = (input, prop, value) => { if (input[prop] !== value) input[prop] = value; };
+
 // Chrome fires "change" on every typed digit of a date, and reacting to each
-// one rewrites the fields mid-typing. So react when the date is complete and
-// typing has paused, when the field loses focus, or when a date is picked
-// from the calendar.
+// one rewrites the fields mid-typing and scrambles what's being entered. So
+// while someone types, leave everything alone and react when the field loses
+// focus. A date picked from the calendar (no typing) reacts straight away.
 function onDateSettled(input, handler) {
-  let timer = null;
+  let typing = false;
   let pending = false;
-  const run = () => { clearTimeout(timer); timer = null; pending = false; handler(); };
+  const run = () => { pending = false; handler(); };
+  input.addEventListener('keydown', (e) => {
+    if (/^(\d|Arrow.*|Backspace|Delete)$/.test(e.key)) typing = true;
+    // Tab from the year goes to the calendar icon inside the same field, so
+    // the field never loses focus; treat Tab and Enter as "done typing".
+    if ((e.key === 'Tab' || e.key === 'Enter') && pending) setTimeout(() => { if (pending) run(); });
+  });
   input.addEventListener('change', () => {
     pending = true;
-    clearTimeout(timer);
-    if (document.activeElement !== input) return run();
-    if (/^\d{4}-/.test(input.value) && Number(input.value.slice(0, 4)) >= 2000) timer = setTimeout(run, 700);
+    if (!typing) run();
   });
-  input.addEventListener('blur', () => { if (pending) run(); });
+  input.addEventListener('blur', () => {
+    typing = false;
+    if (pending) run();
+  });
 }
 
 // Defaults to the current time rounded outwards: at 17:20 (or 17:00 on the

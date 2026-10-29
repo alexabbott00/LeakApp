@@ -131,18 +131,24 @@ input, select, textarea, button { font: inherit; color: inherit; }
 }
 .icon-btn svg { fill: var(--md-on-surface); }
 
-/* FAB: 56px, primary container, bottom right */
+/* Extended FAB: 56px tall, icon plus label, primary container, bottom right */
 .fab {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  width: 56px;
   height: 56px;
+  padding: 0 20px 0 16px;
   border: 0;
   border-radius: 16px;
   background: var(--md-primary-container);
-  display: grid;
-  place-items: center;
+  color: var(--md-on-primary-container);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
 }

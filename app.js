@@ -275,6 +275,23 @@ function fillToHours(wantedMs, wantedLabel) {
   fillHourList($('to-hour'), $('to-date').value, (t) => after(t) && t <= latestTo(), wantedMs, wantedLabel);
 }
 
+// Chrome fires "change" on every typed digit of a date, and reacting to each
+// one rewrites the fields mid-typing. So react when the date is complete and
+// typing has paused, when the field loses focus, or when a date is picked
+// from the calendar.
+function onDateSettled(input, handler) {
+  let timer = null;
+  let pending = false;
+  const run = () => { clearTimeout(timer); timer = null; pending = false; handler(); };
+  input.addEventListener('change', () => {
+    pending = true;
+    clearTimeout(timer);
+    if (document.activeElement !== input) return run();
+    if (/^\d{4}-/.test(input.value) && Number(input.value.slice(0, 4)) >= 2000) timer = setTimeout(run, 700);
+  });
+  input.addEventListener('blur', () => { if (pending) run(); });
+}
+
 // Defaults to the current time rounded outwards: at 17:20 (or 17:00 on the
 // dot), 17:00 to 18:00; at 23:20, 23:00 today to 00:00 tomorrow.
 function setWhen(fromMs, toMs) {
@@ -1150,7 +1167,7 @@ function init() {
     setInvalid('from-field', isNaN(readHour('from-hour')));
     setInvalid('to-field', isNaN(readHour('to-hour')));
   };
-  $('from-date').addEventListener('change', () => {
+  onDateSettled($('from-date'), () => {
     const fromLabel = $('from-hour').selectedOptions[0]?.textContent.slice(0, 5);
     const toLabel = $('to-hour').selectedOptions[0]?.textContent.slice(0, 5);
     fillFromHours(readHour('from-hour'), fromLabel);
@@ -1166,7 +1183,7 @@ function init() {
     whenChanged();
   });
   $('from-hour').addEventListener('change', () => { fillToHours(readHour('to-hour')); whenChanged(); });
-  $('to-date').addEventListener('change', () => {
+  onDateSettled($('to-date'), () => {
     const toLabel = $('to-hour').selectedOptions[0]?.textContent.slice(0, 5);
     fillToHours(NaN, toLabel);
     whenChanged();

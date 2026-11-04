@@ -153,9 +153,8 @@
   // ---------- Drawing ----------
 
   const ICONS = {
-    // Bucket brimming over, with a sad face.
-    bucket: ['M5 8h14l-1.6 12.5a1 1 0 0 1-1 .9H7.6a1 1 0 0 1-1-.9z', 'M4 7c2-2.4 4.6 1.6 8 0s5.6 1.6 8 0',
-      'M4.5 11v3', 'M19.5 11v3', 'M10 17q2-1.6 4 0'],
+    // Sad bucket standing in a puddle.
+    bucket: ['M6 8.5h12l-1.6 10H7.6z', 'M6 8.5a6 6 0 0 1 12 0', 'M10 15.8q2-1.4 4 0'],
     // House with a smile, and with a flat mouth.
     house: ['M3 11l9-8 9 8', 'M5 10v10h14V10', 'M9.5 15.5q2.5 2.5 5 0'],
     houseFlat: ['M3 11l9-8 9 8', 'M5 10v10h14V10', 'M10 16h4'],
@@ -165,8 +164,11 @@
     pin: ['M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z'],
   };
   const ICON_DOTS = { // little filled eyes, [cx, cy]
-    bucket: [[10, 13], [14, 13]], house: [[10, 13], [14, 13]], houseFlat: [[10, 13], [14, 13]],
+    bucket: [[10, 12.3], [14, 12.3]], house: [[10, 13], [14, 13]], houseFlat: [[10, 13], [14, 13]],
     hourglass: [], wifi: [[10, 16], [14, 16]], pin: [[12, 10]],
+  };
+  const ICON_SOLIDS = { // filled shapes
+    bucket: ['M4 19.6c2-.8 4.6-.5 6.5-.5s4.6-.5 7-.2 5 .7 4.5 2-3.5 1.7-6 1.5-4 .4-7 .3-6.6-.5-7-1.6c-.2-.6.9-1 2-1.5z'],
   };
 
   function statusIcon(name) {
@@ -187,6 +189,12 @@
       dot.setAttribute('r', name === 'pin' ? 2.5 : 0.9);
       dot.setAttribute('class', name === 'pin' ? 'dot-line' : 'dot');
       svg.append(dot);
+    }
+    for (const d of ICON_SOLIDS[name] ?? []) {
+      const solid = document.createElementNS(NS, 'path');
+      solid.setAttribute('d', d);
+      solid.setAttribute('class', 'dot');
+      svg.append(solid);
     }
     return svg;
   }

@@ -3,8 +3,8 @@
 // Checks the next 24 hours of Met Office UKV forecast (via Open-Meteo) against
 // the leaks logged so far, and says whether to put a bucket out. The rule is
 // rain only: a forecast hour matches if it has at least as much rain as the
-// lightest rain ever present in a leak hour. Wind and gusts are shown as
-// context and never change the answer.
+// lightest rain ever present in a leak hour. Rain is shown as a total, with
+// wind and gusts as context; wind never changes the answer.
 //
 // Loaded before app.js. It uses app.js's shared data and helpers only when
 // it's called, so the load order doesn't matter while the app runs. Only the
@@ -19,24 +19,10 @@
   const FORECAST_KEY = 'leakLog.forecast.v1';
   const ON_KEY = 'leakLog.forecastOn';
   const HOURS_AHEAD = 24;
-  const MIN_LEAK_HOURS_FOR_WIND = 5; // fewer leak hours than this can't say what wind leaks come with
-  const COMMON_SECTOR_SHARE = 0.2; // a wind direction is "usual" if this share of leak hours had it
-  const SECTORS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; // wind comes FROM these
 
   const state = { loading: false, failed: false, signature: '' };
 
   const forecastIsOn = () => loadJson(ON_KEY, true) !== false;
-  const sectorOf = (degrees) => Math.round(degrees / 45) % 8;
-
-  function quantile(sorted, q) {
-    const position = (sorted.length - 1) * q;
-    const low = Math.floor(position);
-    const high = Math.ceil(position);
-    return sorted[low] + (sorted[high] - sorted[low]) * (position - low);
-  }
-
-  // "S, SW and W"
-  const listOf = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
   const roundedSpot = (location) => ({ lat: Number(location.lat.toFixed(2)), lon: Number(location.lon.toFixed(2)) });
 
@@ -130,11 +116,9 @@
 
     const threshold = Math.min(...leakRecords.map((record) => record.rain));
     const matching = saved.hours.filter((record) => record.rain >= threshold);
-    const result = { threshold, windContext: windContext(leakRecords), leakRecords };
 
-    if (!matching.length) {
-      return { ...result, kind: 'ok', heaviest: Math.max(...saved.hours.map((record) => record.rain)) };
-    }
+    if (!matching.length) return { kind: 'ok', ahead: spellSummary(saved.hours) };
+
     // Group consecutive matching hours into spells.
     const spells = [];
     for (const record of matching) {
@@ -142,31 +126,10 @@
       if (last && Date.parse(record.time) - Date.parse(last.time) === HOUR) spells.at(-1).push(record);
       else spells.push([record]);
     }
-    return { ...result, kind: 'warn', spells };
+    return { kind: 'warn', spells };
   }
 
-  // The wind leaks usually came with: the middle half of speeds, the usual
-  // directions, and the full range (for the "differs" hint). Null when there
-  // are too few leak hours to say.
-  function windContext(leakRecords) {
-    if (leakRecords.length < MIN_LEAK_HOURS_FOR_WIND) return null;
-    const speeds = leakRecords.map((record) => record.wind_speed_10m).sort((a, b) => a - b);
-    const counts = Array(8).fill(0);
-    leakRecords.forEach((record) => counts[sectorOf(record.wind_direction_10m)]++);
-    const usual = counts
-      .map((n, k) => ({ k, n }))
-      .filter(({ n }) => n / leakRecords.length >= COMMON_SECTOR_SHARE)
-      .sort((a, b) => b.n - a.n)
-      .slice(0, 3)
-      .map(({ k }) => k)
-      .sort((a, b) => a - b);
-    return {
-      low: quantile(speeds, 0.25), high: quantile(speeds, 0.75),
-      min: speeds[0], max: speeds.at(-1), counts, usual,
-    };
-  }
-
-  // The weather over a spell in the shape renderWeather() takes.
+  // The weather over a run of hours in the shape renderWeather() takes.
   function spellSummary(spell) {
     const wind = spell.reduce((sum, r) => sum + r.wind_speed_10m, 0) / spell.length;
     const gustiest = spell.reduce((a, b) => (b.wind_gusts_10m > a.wind_gusts_10m ? b : a));
@@ -187,32 +150,6 @@
     return `${ukHour(from)}${day(from)} to ${ukHour(to)}${ukDate(to) === ukDate(from) ? '' : day(to)}`;
   }
 
-  // Up to two decimals, trailing zeros dropped (0.59 mm stays 0.59, not 0.6, beside a 0.6 mm limit).
-  const rainText = (mm) => `${Number(mm.toFixed(2))} mm`;
-
-  // Lines under the answer: what the leaks had, and a hint when the forecast
-  // wind is unlike it. Wind never changes the answer.
-  function whyLines(result, summary) {
-    const lines = [];
-    const wind = result.windContext;
-    let leaks = `Your leaks have happened with at least ${rainText(result.threshold)} of rain an hour`;
-    if (wind) {
-      leaks += `, and wind mostly ${Math.round(wind.low)} to ${Math.round(wind.high)} mph`;
-      if (wind.usual.length) leaks += ` from ${listOf(wind.usual.map((k) => SECTORS[k]))}`;
-    }
-    lines.push(`${leaks}.`);
-
-    if (wind && summary) {
-      if (summary.wind < wind.min) lines.push('The forecast wind is lighter than in any of your leaks.');
-      else if (summary.wind > wind.max) lines.push('The forecast wind is stronger than in any of your leaks.');
-      const sector = sectorOf(summary.windFrom);
-      if (!wind.counts[sector]) {
-        lines.push(`The forecast wind is from the ${SECTORS[sector]}, which none of your leaks had.`);
-      }
-    }
-    return lines;
-  }
-
   // ---------- Drawing ----------
 
   const ICONS = {
@@ -222,12 +159,14 @@
     // House with a smile, and with a flat mouth.
     house: ['M3 11l9-8 9 8', 'M5 10v10h14V10', 'M9.5 15.5q2.5 2.5 5 0'],
     houseFlat: ['M3 11l9-8 9 8', 'M5 10v10h14V10', 'M10 16h4'],
+    hourglass: ['M6 3h12', 'M6 21h12', 'M7.5 3v3.5c0 2 1.6 3.6 4.5 5.5 2.9-1.9 4.5-3.5 4.5-5.5V3',
+      'M7.5 21v-3.5c0-2 1.6-3.6 4.5-5.5 2.9 1.9 4.5 3.5 4.5 5.5V21'],
     wifi: ['M3 8.5a13 13 0 0 1 18 0', 'M6 11.5a9 9 0 0 1 12 0', 'M10 20q2-1.6 4 0'],
     pin: ['M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z'],
   };
   const ICON_DOTS = { // little filled eyes, [cx, cy]
     bucket: [[10, 13], [14, 13]], house: [[10, 13], [14, 13]], houseFlat: [[10, 13], [14, 13]],
-    wifi: [[10, 16], [14, 16]], pin: [[12, 10]],
+    hourglass: [], wifi: [[10, 16], [14, 16]], pin: [[12, 10]],
   };
 
   function statusIcon(name) {
@@ -260,6 +199,13 @@
   }
 
   const clock = (ms) => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: UK_ZONE });
+
+  // The weather line for the card, with its rain labelled as a total.
+  function weatherLine(summary) {
+    const line = el('div', 'weather');
+    renderWeather(line, summary, { rainTotal: true });
+    return line;
+  }
 
   function button(label, className, onClick) {
     const b = el('button', `btn ${className}`, label);
@@ -317,27 +263,23 @@
           button('Retry', 'tonal', () => refreshForecast(true)));
         break;
       case 'few':
-        name = 'houseFlat'; tone = 'quiet';
+        name = 'hourglass'; tone = 'quiet';
         body.append(el('p', 'forecast-headline', 'Not enough leaks to check yet'),
           el('p', 'supporting', "Once a leak has rain in it, this card will say when similar rain is forecast."));
         break;
       case 'ok':
         name = 'house'; tone = 'ok';
         body.append(el('p', 'forecast-headline', 'All good'),
-          el('p', 'forecast-detail', `No rain like your leaks is forecast in the next 24 hours. The heaviest hour is ${rainText(view.heaviest)}.`),
-          ...whyLines(view, null).map((line) => el('p', 'supporting small', line)));
+          el('p', 'forecast-detail', 'No weather conditions matching potential leaking are forecast in the next 24 hours.'),
+          weatherLine(view.ahead));
         break;
-      case 'warn': {
+      case 'warn':
         name = 'bucket'; tone = 'warn';
-        const weather = el('div', 'weather');
-        renderWeather(weather, view.first);
         body.append(el('p', 'forecast-headline', 'Put a bucket out'),
-          el('p', 'forecast-detail', `Rain like your leaks is forecast from ${view.times}.`),
-          weather);
+          el('p', 'forecast-detail', `Weather conditions matching potential leaking are forecast from ${view.times}.`),
+          weatherLine(view.first));
         if (view.later) body.append(el('p', 'forecast-detail', `And ${view.later} more spell${view.later === 1 ? '' : 's'} later.`));
-        body.append(...whyLines(view, view.first).map((line) => el('p', 'supporting small', line)));
         break;
-      }
       default:
         return;
     }

@@ -840,14 +840,15 @@ function weatherPart(iconName, value, label, fromDegrees) {
   return part;
 }
 
-function renderWeather(el, summary) {
+function renderWeather(el, summary, { rainTotal = false } = {}) {
   if (!summary) {
     el.textContent = 'Weather pending';
     return;
   }
   const { rain, wind, windFrom, gust, gustFrom } = summary;
+  const mm = `${rain.toFixed(1)} mm`;
   el.replaceChildren(
-    weatherPart('rain', `${rain.toFixed(1)} mm`, `Rain ${rain.toFixed(1)} mm`),
+    weatherPart('rain', rainTotal ? `${mm} total` : mm, `${rainTotal ? 'Total rain' : 'Rain'} ${mm}`),
     weatherPart('wind', `${Math.round(wind)} mph`,
       `Average wind ${Math.round(wind)} mph from ${compassPoint(windFrom)}`, windFrom),
     weatherPart('gust', `${Math.round(gust)} mph`,

@@ -15,7 +15,6 @@
   'use strict';
 
   const MIN_LEAKS_TO_COMPARE = 3;
-  const RAINY_MM = 0.1; // an hour is "rainy" with at least this much rain in it
   const MIN_RAINY_HOURS = 10; // fewer rainy hours than this isn't enough to compare
   const LEAD_HOURS = 24; // timeline: hours shown before a leak starts
   const TRAIL_HOURS = 6; // ...and after it ends

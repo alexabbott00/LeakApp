@@ -19,6 +19,9 @@ south-westerly gusts, that points at one side of the roof.
   enter the whole time you were away.
 - Tap a leak in the history to change it, e.g. to add water you found
   later.
+- A **Forecast** card at the top of History checks the next 24 hours against
+  the rain your leaks have had, and says when to put a bucket out. It can be
+  switched off in Settings.
 - Open the **Insights** tab to compare the weather during leaks with rainy
   hours that had no leak, so you can see what differs when it rains. It needs
   a few leaks logged before it can compare them.
@@ -40,7 +43,7 @@ south-westerly gusts, that points at one side of the roof.
 - **Postcode lookup.** When you set the location, the postcode is sent once
   to [postcodes.io](https://postcodes.io/) to find its map position. It
   isn't sent anywhere else.
-- **Weather lookups.** To fetch the weather, the flat's coordinates are sent
+- **Weather lookups.** To fetch the weather and the forecast, the flat's coordinates are sent
   to Open-Meteo, rounded to about 1 km so the exact address isn't shared.
   The postcode is never sent there.
 - **Exports are personal.** A CSV export contains your leaks and the rounded
@@ -78,6 +81,9 @@ The app is being built in stages. Each stage adds something usable.
 - [ ] **Stage 10: Quality.** Automated tests and CI.
 - [ ] **Stage 11: Record absences.** Mark periods away from home, so the
       analysis doesn't count them as dry.
+- [x] **Stage 12: Forecast check.** A card on History that checks the next 24
+      hours of forecast against the rain your leaks have had, and says when to
+      put a bucket out. In the app only; no push notifications.
 
 ## Tech
 

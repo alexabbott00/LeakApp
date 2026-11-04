@@ -1,0 +1,98 @@
+/* Stage 12: the Forecast card on History, and the Settings switch. Loaded
+   after style.css, and uses its colour and spacing tokens. */
+
+.card.forecast {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border: 1px solid var(--md-outline-variant);
+  background: var(--md-surface-container);
+  color: var(--md-on-surface);
+}
+.card.forecast[hidden] { display: none; }
+.card.forecast.ok { background: var(--md-secondary-container); border-color: transparent; color: var(--md-on-secondary-container); }
+/* The warning is tinted, bordered and has its own icon, so it never relies on colour alone. */
+.card.forecast.warn {
+  background: color-mix(in srgb, var(--md-error) 14%, var(--md-surface));
+  border: 2px solid var(--md-error);
+}
+
+.forecast-icon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.forecast-icon .dot { fill: currentColor; stroke: none; }
+.forecast-icon .dot-line { fill: none; }
+.card.forecast.warn .forecast-icon { color: var(--md-error); }
+
+.forecast-body { flex: 1; min-width: 0; }
+.forecast-body p { margin: 0 0 6px; }
+.forecast-headline { font-size: 1.125rem; font-weight: 500; }
+.forecast-detail { font-size: 0.875rem; }
+.card.forecast .supporting { color: inherit; opacity: 1; margin: 0 0 6px; }
+.card.forecast .small { font-size: 0.75rem; }
+.card.forecast .weather {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+}
+.card.forecast .btn { margin-top: 6px; min-height: 48px; }
+
+/* MD3 switch: a label, with the switch on the right. */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.switch-row input {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 52px;
+  height: 32px;
+  margin: 0;
+  border: 2px solid var(--md-outline);
+  border-radius: 16px;
+  background: var(--md-surface-container-highest, var(--md-surface-container));
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard);
+}
+.switch-row input::before { /* the handle: small and grey when off, larger and with a tick when on */
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--md-outline);
+  transition: all var(--dur-short) var(--ease-standard);
+}
+.switch-row input:checked { background: var(--md-primary); border-color: var(--md-primary); }
+.switch-row input:checked::before { left: 20px; width: 24px; height: 24px; margin-top: -12px; background: var(--md-on-primary); }
+.switch-row input:checked::after { /* tick, so on/off isn't colour alone */
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: 7px;
+  width: 5px;
+  height: 11px;
+  border: solid var(--md-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+.switch-row input:focus-visible { outline: 3px solid var(--md-primary); outline-offset: 3px; }

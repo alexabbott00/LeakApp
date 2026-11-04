@@ -10,6 +10,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="insights.css">
+  <link rel="stylesheet" href="forecast.css">
 </head>
 <body data-tab="history">
   <header>
@@ -36,6 +37,9 @@
 
   <main>
    <div id="panel-history" class="tabpanel" role="tabpanel" aria-labelledby="tab-history">
+    <!-- Forecast: drawn by forecast.js. -->
+    <section id="forecast-card" class="card forecast" aria-live="polite" hidden></section>
+
     <!-- Shown until a location is set, since weather needs one. -->
     <section id="location-prompt" class="card prompt" hidden>
       <p>Set your location to add weather to your leaks.</p>
@@ -196,6 +200,18 @@
         <button type="submit" id="apply-location" class="btn filled wide">Apply</button>
       </form>
 
+      <section class="settings-section" aria-labelledby="forecast-title">
+        <h3 id="forecast-title">Forecast</h3>
+        <p class="supporting" id="forecast-help">Checks the next 24 hours of forecast against
+          the rain your leaks have had, and tells you at the top of History when to
+          put a bucket out. When the app opens, your location (rounded to about 1 km)
+          is sent to Open-Meteo to get the forecast.</p>
+        <label class="switch-row">
+          <span>Forecast warning</span>
+          <input type="checkbox" role="switch" id="forecast-switch" aria-describedby="forecast-help">
+        </label>
+      </section>
+
       <section class="settings-section" aria-labelledby="backup-title">
         <h3 id="backup-title">Backup</h3>
         <p class="supporting">Saves every hour since tracking started, with your
@@ -243,6 +259,7 @@
   <div id="toast" class="snackbar" role="status" aria-live="polite"></div>
 
   <script src="insights.js"></script>
+  <script src="forecast.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -131,7 +131,8 @@ function render(newId) {
   $('summary').textContent =
     `${leaks.length} leak${leaks.length === 1 ? '' : 's'} logged · Tracking since ${since}`;
   $('empty').hidden = leaks.length > 0;
-  $('location-prompt').hidden = !!loadLocation();
+  // With the forecast on, its card asks for the location instead, so there aren't two prompts.
+  $('location-prompt').hidden = !!loadLocation() || forecastIsOn();
 
   const list = $('history');
   list.replaceChildren();
@@ -191,6 +192,7 @@ function render(newId) {
   }
 
   renderInsights(); // keeps the Insights charts up to date (insights.js); does nothing unless they're showing
+  renderForecast(); // the Forecast card (forecast.js); worked out from saved data, no network
 }
 
 // ---------- Record leak ----------
@@ -569,6 +571,7 @@ async function applyLocation(event) {
     render();
     // Weather already fetched keeps its old location; new hours use this one.
     updateWeather(true);
+    refreshForecast(true);
   } catch {
     showPostcodeError(true, "Couldn't reach the postcode lookup. Try again.");
   } finally {
@@ -609,6 +612,7 @@ function closeSettings() {
 // still revise. The current hour is included as a provisional value.
 
 const HOUR = 3600 * 1000;
+const RAINY_MM = 0.1; // an hour is "rainy" with at least this much rain in it (Insights, Forecast)
 const WEATHER_URL = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
 const WEATHER_MODEL = 'ukmo_uk_deterministic_2km';
 const WEATHER_FIELDS = [
@@ -1144,6 +1148,7 @@ function init() {
   trackingStartedAt();
   convertOldLeaks();
   initInsights(); // the History / Insights tabs (insights.js)
+  initForecast(); // the Forecast card and its Settings switch (forecast.js)
 
   $('fab').addEventListener('click', () => openRecordDialog());
   $('close-record').addEventListener('click', requestCloseRecord);
@@ -1240,7 +1245,7 @@ function init() {
   loadHours()
     .then((records) => records.forEach((record) => hours.set(record.time, record)))
     .catch((error) => console.warn('Weather database unavailable', error))
-    .finally(() => { render(); updateWeather(); });
+    .finally(() => { render(); updateWeather(); refreshForecast(); });
 
   // Ask the browser not to clear our data when the phone is low on space.
   navigator.storage?.persist?.();

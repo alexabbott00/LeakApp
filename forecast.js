@@ -142,12 +142,12 @@
     };
   }
 
-  // "03:00 to 07:00", with "tomorrow" where the day isn't today.
+  // "03:00 and 07:00", with "tomorrow" where the day isn't today.
   function spellTimes(spell) {
     const from = Date.parse(spell[0].time) - HOUR;
     const to = Date.parse(spell.at(-1).time);
     const day = (ms) => (ukDate(ms) === ukDate(Date.now()) ? '' : ' tomorrow');
-    return `${ukHour(from)}${day(from)} to ${ukHour(to)}${ukDate(to) === ukDate(from) ? '' : day(to)}`;
+    return `${ukHour(from)}${day(from)} and ${ukHour(to)}${ukDate(to) === ukDate(from) ? '' : day(to)}`;
   }
 
   // ---------- Drawing ----------
@@ -270,13 +270,13 @@
       case 'ok':
         name = 'house'; tone = 'ok';
         body.append(el('p', 'forecast-headline', 'All good'),
-          el('p', 'forecast-detail', 'No weather conditions matching potential leaking are forecast in the next 24 hours.'),
+          el('p', 'forecast-detail', 'No weather conditions matching potential leakages are forecast in the next 24 hours.'),
           weatherLine(view.ahead));
         break;
       case 'warn':
         name = 'bucket'; tone = 'warn';
         body.append(el('p', 'forecast-headline', 'Put a bucket out'),
-          el('p', 'forecast-detail', `Weather conditions matching potential leaking are forecast from ${view.times}.`),
+          el('p', 'forecast-detail', `Weather conditions matching potential leakages are forecast between ${view.times}.`),
           weatherLine(view.first));
         if (view.later) body.append(el('p', 'forecast-detail', `And ${view.later} more spell${view.later === 1 ? '' : 's'} later.`));
         break;
